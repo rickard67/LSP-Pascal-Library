@@ -7,6 +7,8 @@ A language server protocal client written in Pascal (Delphi).
 The LSP client is a component to make communication with language servers easier. Use
 the client to send notifications and requests to the server. Recieve notifications
 and request using events.
+This component was created for use in RJ TextEd to add language server support. It has been
+tested with several language servers (https://www.rj-texted.se/Forum/viewforum.php?f=23).
 
 ## Demo
 
