@@ -818,15 +818,15 @@ end;
 procedure OnFindReferences1(Sender: TObject; const value: TLSPFindReferencesResponse;
   const errorCode: Integer; const errorMessage: string);
 var
-	i: Integer;
-	LRange: TLSPRange;
+  i: Integer;
+  LRange: TLSPRange;
 begin    
   // Display all references found in the project
   for i := 0 to Length(value.locations) - 1 do
   begin
     sz := UriToFilePath(value.locations[i].uri);
-	 LRange := value.locations[i].range;
-	 ProcessItem(sz, LRange);
+    LRange := value.locations[i].range;
+    ProcessItem(sz, LRange);
   end;
 end;
 
