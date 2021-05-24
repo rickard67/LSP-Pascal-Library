@@ -56,6 +56,7 @@ function JsonDocumentLinkResponseToObject(const LJson: ISuperObject; var ErrorCo
     path: string = ''): TLSPDocumentLinkResponse;
 function JsonDocumentLinkResolveToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPDocumentLink;
 function JsonExecuteCommandResult(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): string;
+function JsonFindReferencesResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPFindReferencesResponse;
 function JsonFoldingRangeResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string; const
     path: string = ''): TLSPFoldingRangeResponse;
 function JsonGotoResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer;
@@ -2035,6 +2036,58 @@ begin
   begin
     ErrorCode := LJson['error'].AsObject.I['code'];
     ErrorMessage := LJson['error'].AsObject.S['message'];
+  end;
+end;
+
+function JsonFindReferencesResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPFindReferencesResponse;
+var
+  LArray: ISuperArray;
+  s: string;
+  i: Integer;
+
+  procedure ReadLocation(var item: TLSPLocation; const supObj: ISuperObject);
+  begin
+    item.uri := supObj.S['uri'];
+
+    // Range
+    if supObj.Expression['range'].DataType = dtObject then
+    begin
+      item.range.startPos.line := supObj.O['range'].O['start'].I['line'];
+      item.range.startPos.character := supObj.O['range'].O['start'].I['character'];
+      item.range.endPos.line := supObj.O['range'].O['end'].I['line'];
+      item.range.endPos.character := supObj.O['range'].O['end'].I['character'];
+    end;
+  end;
+
+begin
+  Result := TLSPFindReferencesResponse.Create;
+  ErrorCode := 0;
+  ErrorMessage := '';
+
+  if LJson['result'].DataType <> dtNil then
+    s := 'result'
+  else
+    s := 'partial result';
+
+  // Check for errors
+  if (LJson['error'].DataType = dtObject) and (LJson['error'].AsObject.S['message'] <> '') then
+  begin
+    ErrorCode := LJson['error'].AsObject.I['code'];
+    ErrorMessage := LJson['error'].AsObject.S['message'];
+  end;
+
+  // The response can be null or TArray<TLSPLocation>
+  if (LJson[s].DataType = dtArray) then
+  begin
+    // TArray<TLSPLocation>
+    LArray := LJson[s].AsArray;
+    if LArray.Length = 0 then Exit;
+    if LArray.O[0].S['uri'] <> '' then
+    begin
+      SetLength(Result.locations, LArray.Length);
+      for i := 0 to LArray.Length - 1 do
+        ReadLocation(Result.locations[i], LArray.O[i]);
+    end;
   end;
 end;
 
@@ -5185,7 +5238,7 @@ begin
     lspGotoDefinition:                Result := TLSPDefinitionParams(lspMsg.paramObj).AsJSON;
     lspGotoTypeDefinition:            Result := TLSPTypeDefinitionParams(lspMsg.paramObj).AsJSON;
     lspGotoImplementation:            Result := TLSPImplmentationParams(lspMsg.paramObj).AsJSON;
-    lspReferences:                    Result := '';
+    lspReferences:                    Result := TLSPReferencesParams(lspMsg.paramObj).AsJSON;
     lspDocumentHighlight:             Result := TLSPDocumentHighlightParams(lspMsg.paramObj).AsJSON;
     lspDocumentSymbol:                Result := TLSPDocumentSymbolParams(lspMsg.paramObj).AsJSON;
     lspCodeAction:                    Result := TLSPCodeActionParams(lspMsg.paramObj).AsJSON;

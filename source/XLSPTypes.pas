@@ -3522,6 +3522,29 @@ type
     locationLinks: TArray<TLSPLocationLink>;
   end;
 
+  TLSPReferenceContext = record
+  public
+    // Include the declaration of the current symbol.
+    includeDeclaration: boolean;
+  end;
+
+  TLSPReferencesParams = class(TLSPTextDocumentPositionParams)
+  public
+    context: TLSPReferenceContext;
+
+    // An optional token that a server can use to report partial results (e.g.
+	  // streaming) to the client.
+	  partialResultToken: TLSPProgressToken;
+
+    // An optional token that a server can use to report work done progress.
+    workDoneToken: TLSPProgressToken;
+  end;
+
+  TLSPFindReferencesResponse = class(TLSPBaseParams)
+  public
+    locations: TArray<TLSPLocation>;
+  end;
+
   TLSPDocumentHighlightParams = class(TLSPTextDocumentPositionParams)
   public
     // An optional token that a server can use to report partial results (e.g.

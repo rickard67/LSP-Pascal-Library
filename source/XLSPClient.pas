@@ -54,6 +54,7 @@ type
   TOnErrorEvent = procedure(Sender: TObject; const errorCode: Integer; const errorMsg: string) of object;
   TOnExecuteCommandRequestEvent = procedure(Sender: TObject; Json: string) of object;
   TOnExitEvent = procedure(Sender: TObject; exitCode: Integer; const bRestartServer: Boolean) of object;
+  TOnFindReferencesEvent = procedure(Sender: TObject; const value: TLSPFindReferencesResponse; const errorCode: Integer; const errorMessage: string) of object;
   TOnFoldingRangeEvent = procedure(Sender: TObject; const value: TLSPFoldingRangeResponse; const errorCode: Integer; const errorMessage: string) of object;
   TOnGotoDeclarationEvent = procedure(Sender: TObject; const value: TLSPGotoResponse; const errorCode: Integer; const errorMessage: string) of object;
   TOnGotoDefinitionEvent = procedure(Sender: TObject; const value: TLSPGotoResponse; const errorCode: Integer; const errorMessage: string) of object;
@@ -153,6 +154,7 @@ type
     FOnWorkspaceSymbol: TOnWorkspaceSymbolRequestEvent;
     FPartialTokens: TStringList;
     FOnExecuteCommandRequest: TOnExecuteCommandRequestEvent;
+    FOnFindReferences: TOnFindReferencesEvent;
     FOnFoldingRange: TOnFoldingRangeEvent;
     FOnGotoDeclaration: TOnGotoDeclarationEvent;
     FOnGotoDefinition: TOnGotoDefinitionEvent;
@@ -337,6 +339,7 @@ type
     property OnWorkspaceWillRenameFiles: TOnWorkspaceWillRenameFilesResponseEvent
         read FOnWorkspaceWillRenameFiles write FOnWorkspaceWillRenameFiles;
     property OnExecuteCommand: TOnExecuteCommandRequestEvent read FOnExecuteCommandRequest write FOnExecuteCommandRequest;
+    property OnFindReferences: TOnFindReferencesEvent read FOnFindReferences write FOnFindReferences;
   end;
 
   procedure Register;
@@ -1149,6 +1152,19 @@ begin
       // OnPrepareRename event
       if Assigned(FOnPrepareRename) then
         FOnPrepareRename(Self, TLSPPrepareRenameResponse(params), errorCode, errorMessage);
+
+      Result := True;
+    end;
+
+    // A find references request is sent from the client to the server to resolve project wide
+    // references for a symbol at a given text document position.
+    lspReferences:
+    begin
+      params := JsonFindReferencesResponseToObject(LJson, errorCode, errorMessage);
+
+      // OnFindReferences event
+      if Assigned(FOnFindReferences) then
+        FOnFindReferences(Self, TLSPFindReferencesResponse(params), errorCode, errorMessage);
 
       Result := True;
     end;

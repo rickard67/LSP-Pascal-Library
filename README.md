@@ -793,6 +793,54 @@ begin
 end;
 ```
 
+#### Find References Request
+
+The references request is sent from the client to the server to resolve project-wide 
+references for the symbol denoted by the given text document position.
+
+```
+// The event catches the response from the server
+FLSPClient1.OnFindReferences := OnFindReferences1;
+
+var
+  params: TLSPReferencesParams;
+begin
+  if not FLSPClient1.IsRequestSupported(lspReferences) then Exit;
+  
+  params := TLSPReferencesParams.Create;
+  params.position.line := 11;
+  params.position.character := 3;
+  params.context.includeDeclaration := True;
+  
+  FLSPClient1.SendRequest(lspReferences, '', params);
+end;
+
+procedure OnFindReferences1(Sender: TObject; const value: TLSPFindReferencesResponse;
+  const errorCode: Integer; const errorMessage: string);
+var
+	i: Integer;
+	LRange: TLSPRange;
+begin    
+  // Display all references found in the project
+  for i := 0 to Length(value.locations) - 1 do
+  begin
+    sz := UriToFilePath(value.locations[i].uri);
+	 LRange := value.locations[i].range;
+	 ProcessItem(sz, LRange);
+  end;
+end;
+
+procedure ProcessItem(const sz: string; const range: TLSPRange);
+begin
+  // You could display found references in a tree
+  //
+  // [-] C:\MyFolder\Source\Foo.cpp
+  //       Line: 12: <The actual text line ...>
+  //       Line: 28: ...
+  
+end;
+```
+
 #### Document Highlight Request
 
 The document highlight request is sent from the client to the server to resolve a document 
