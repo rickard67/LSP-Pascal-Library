@@ -1892,6 +1892,7 @@ begin
   end;
 
   if LJson[s].DataType <> dtArray then Exit;
+  LArray := LJson[s].AsArray;
 
   bDocumentSymbols := False;
   for LMember in LArray do
@@ -1900,7 +1901,6 @@ begin
     Break;
   end;
 
-  LArray := LJson[s].AsArray;
   if (LArray.Length > 0) then
   begin
     if bDocumentSymbols then
