@@ -537,6 +537,7 @@ var
   params: TLSPTextDocumentEdit;
   edit: TLSPAnnotatedTextEdit;
   LAction: TLSPCodeAction;
+  LChange: TLSPEditChanges;
 begin
   Result := TLSPCodeActionResponse.Create;
   ErrorCode := 0;
@@ -654,12 +655,13 @@ begin
       // Workspace edit Changes
       if (LArrayO.Expression['edit'].DataType = dtObject) and (LArrayO.O['edit'].Expression['changes'].DataType = dtObject) then
       begin
-        LAction.edit.changes.uri := LArrayO.O['edit'].O['changes'].S['uri'];
+        LChange := TLSPEditChanges.Create;
+        LChange.uri := LArrayO.O['edit'].O['changes'].S['uri'];
 
         if (LArrayO.O['edit'].O['changes'].Expression['values'].DataType = dtArray) then
         begin
           LArr := LArrayO.O['edit'].O['changes'].A['values'];
-          SetLength(LAction.edit.changes.values, LArr.Length);
+          SetLength(LChange.values, LArr.Length);
           j := 0;
           for LMember1 in LArr do
           begin
@@ -667,17 +669,18 @@ begin
             if LArrO.Expression['range'].DataType = dtObject then
             begin
               LRange := LArrO.O['range'];
-              LAction.edit.changes.values[j].newText := LArrO.S['newText'];
-              LAction.edit.changes.values[j].range.startPos.line := LRange.O['start'].I['line'];
-              LAction.edit.changes.values[j].range.startPos.character := LRange.O['start'].I['character'];
-              LAction.edit.changes.values[j].range.endPos.line := LRange.O['end'].I['line'];
-              LAction.edit.changes.values[j].range.endPos.character := LRange.O['end'].I['character'];
+              LChange.values[j].newText := LArrO.S['newText'];
+              LChange.values[j].range.startPos.line := LRange.O['start'].I['line'];
+              LChange.values[j].range.startPos.character := LRange.O['start'].I['character'];
+              LChange.values[j].range.endPos.line := LRange.O['end'].I['line'];
+              LChange.values[j].range.endPos.character := LRange.O['end'].I['character'];
               Inc(j);
             end;
           end;
-          if j <> Length(LAction.edit.changes.values) then
-            SetLength(LAction.edit.changes.values, j);
+          if j <> Length(LChange.values) then
+            SetLength(LChange.values, j);
         end;
+        LAction.edit.changes.Add(LChange);
       end;
 
       // Workspace edit document changes
@@ -794,6 +797,7 @@ var
   j,k: Integer;
   params: TLSPTextDocumentEdit;
   edit: TLSPAnnotatedTextEdit;
+  LChange: TLSPEditChanges;
 begin
   Result := TLSPCodeAction.Create;
   ErrorCode := 0;
@@ -902,29 +906,31 @@ begin
   // Workspace edit Changes
   if (LJsonResult.Expression['edit'].DataType = dtObject) and (LJsonResult.O['edit'].Expression['changes'].DataType = dtObject) then
   begin
-    Result.edit.changes.uri := LJsonResult.O['edit'].O['changes'].S['uri'];
+    LChange := TLSPEditChanges.Create;
+    LChange.uri := LJsonResult.O['edit'].O['changes'].S['uri'];
     if LJsonResult.O['edit'].O['changes'].Expression['values'].DataType = dtObject then
     begin
       LArr := LJsonResult.O['edit'].O['changes'].A['values'];
-      SetLength(Result.edit.changes.values, LArr.Length);
+      SetLength(LChange.values, LArr.Length);
       j := 0;
       for LMem in LArr do
       begin
         if LMem.DataType <> dtObject then Continue;
         LArrO := LMem.AsObject;
 
-        Result.edit.changes.values[j].newText := LArrO.S['newText'];
+        LChange.values[j].newText := LArrO.S['newText'];
         if LArrO.Expression['range'].DataType = dtObject then
         begin
           LRange := LArrO.O['range'];
-          Result.edit.changes.values[j].range.startPos.line := LRange.O['start'].I['line'];
-          Result.edit.changes.values[j].range.startPos.character := LRange.O['start'].I['character'];
-          Result.edit.changes.values[j].range.endPos.line := LRange.O['end'].I['line'];
-          Result.edit.changes.values[j].range.endPos.character := LRange.O['end'].I['character'];
+          LChange.values[j].range.startPos.line := LRange.O['start'].I['line'];
+          LChange.values[j].range.startPos.character := LRange.O['start'].I['character'];
+          LChange.values[j].range.endPos.line := LRange.O['end'].I['line'];
+          LChange.values[j].range.endPos.character := LRange.O['end'].I['character'];
         end;
         Inc(j);
       end;
     end;
+    Result.edit.changes.Add(LChange);
   end;
 
   // Workspace edit document changes
@@ -4271,6 +4277,8 @@ var
   i,k: Integer;
   params: TLSPTextDocumentEdit;
   edit: TLSPAnnotatedTextEdit;
+  LEdit: TLSPTextEdit;
+  LChange: TLSPEditChanges;
 begin
   Result := nil;
   ErrorCode := 0;
@@ -4293,30 +4301,41 @@ begin
   if LJson[s].AsObject.Expression['changes'].DataType = dtObject then
   begin
     LObject := LJson[s].AsObject.O['changes'];
-    Result.changes.uri := LObject.S['uri'];
-    if LObject.Expression['values'].DataType = dtArray then
+    LObject.First;
+    for k := 1 to LObject.Count do
     begin
-      LArray := LObject.A['values'];
-      SetLength(Result.changes.values, LArray.Length);
-      i := 0;
-      for LMember in LArray do
+      if LObject.CurrentValue.DataType = dtArray then
       begin
-        if LMember.DataType <> dtObject then Continue;
-        LArrayObj := LMember.AsObject;
+        LChange := TLSPEditChanges.Create;
+        LChange.uri := LObject.CurrentKey;
 
-        Result.changes.values[i].newText := LArrayObj.S['newText'];
-        if LArrayObj.Expression['range'].DataType = dtObject then
+        LArray := TCast.Create(LObject.CurrentValue).AsArray;
+        SetLength(LChange.values, LArray.Length);
+        i := 0;
+        for LMember in LArray do
         begin
-          LRange := LArrayObj.O['range'];
-          Result.changes.values[i].range.startPos.line := LRange.O['start'].I['line'];
-          Result.changes.values[i].range.startPos.character := LRange.O['start'].I['character'];
-          Result.changes.values[i].range.endPos.line := LRange.O['end'].I['line'];
-          Result.changes.values[i].range.endPos.character := LRange.O['end'].I['character'];
+          if LMember.DataType <> dtObject then Continue;
+          LArrayObj := LMember.AsObject;
+
+          LEdit := TLSPTextEdit.Create;
+          LEdit.newText := LArrayObj.S['newText'];
+          if LArrayObj.Expression['range'].DataType = dtObject then
+          begin
+            LRange := LArrayObj.O['range'];
+            LEdit.range.startPos.line := LRange.O['start'].I['line'];
+            LEdit.range.startPos.character := LRange.O['start'].I['character'];
+            LEdit.range.endPos.line := LRange.O['end'].I['line'];
+            LEdit.range.endPos.character := LRange.O['end'].I['character'];
+          end;
+          LChange.values[i] := LEdit;
+          Inc(i);
         end;
-        Inc(i);
+        if i <> Length(LChange.values) then
+          SetLength(LChange.values, i);
+
+        Result.changes.Add(LChange);
       end;
-      if i <> Length(Result.changes.values) then
-        SetLength(Result.changes.values, i);
+      LObject.Next;
     end;
   end;
 
@@ -4875,6 +4894,7 @@ var
   i,j: Integer;
   params: TLSPBaseParams;
   edit: TLSPAnnotatedTextEdit;
+  LChange: TLSPEditChanges;
 begin
   Result := nil;
   ErrorCode := 0;
@@ -5019,12 +5039,14 @@ begin
       LObject := LJson[s].AsObject;
       LObject.First;
       sn := LObject.CurrentKey;
-      Result.edit.changes.uri := sn;
+
+      LChange := TLSPEditChanges.Create;
+      LChange.uri := sn;
 
       if LObject.Expression[sn].DataType = dtArray then
       begin
         LArray := LObject.A[sn];
-        SetLength(Result.edit.changes.values,LArray.Length);
+        SetLength(LChange.values,LArray.Length);
 
         // Retrieve edit's
         i := 0;
@@ -5032,22 +5054,23 @@ begin
         begin
           if LMember.DataType <> dtObject then Continue;
           LArrayObj := LMember.AsObject;
-          Result.edit.changes.values[i].newText := LArrayObj.S['newText'];
+          LChange.values[i].newText := LArrayObj.S['newText'];
 
           // range
           if LArrayObj.Expression['range'].DataType = dtObject then
           begin
             LRange := LArrayObj.O['range'];
-            Result.edit.changes.values[i].range.startPos.line := LRange.O['startPos'].I['line'];
-            Result.edit.changes.values[i].range.startPos.character := LRange.O['startPos'].I['character'];
-            Result.edit.changes.values[i].range.endPos.line := LRange.O['endPos'].I['line'];
-            Result.edit.changes.values[i].range.endPos.character := LRange.O['endPos'].I['character'];
+            LChange.values[i].range.startPos.line := LRange.O['startPos'].I['line'];
+            LChange.values[i].range.startPos.character := LRange.O['startPos'].I['character'];
+            LChange.values[i].range.endPos.line := LRange.O['endPos'].I['line'];
+            Lchange.values[i].range.endPos.character := LRange.O['endPos'].I['character'];
           end;
           Inc(i);
         end;
-        if i <> Length(Result.edit.changes.values) then
-          SetLength(Result.edit.changes.values, i);
+        if i <> Length(LChange.values) then
+          SetLength(LChange.values, i);
       end;
+      Result.edit.changes.Add(LChange);
     end;
   end;
 

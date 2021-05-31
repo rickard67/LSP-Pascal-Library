@@ -1179,7 +1179,7 @@ type
     description: string;
   end;
 
-  TLSPEditChanges = record
+  TLSPEditChanges = class
     uri: TLSPDocumentUri;
     values: TArray<TLSPTextEdit>;
   end;
@@ -1194,7 +1194,7 @@ type
   TLSPWorkspaceEdit = class(TLSPBaseParams)
   public
     // Holds changes to existing resources.
-    changes: TLSPEditChanges;
+    changes: TObjectList<TLSPEditChanges>;
     (* changes?: { [uri: DocumentUri]: TextEdit[]; }; *)
 
     // Depending on the client capability
@@ -1226,6 +1226,8 @@ type
     // @since 3.16.0
     //
     changeAnnotations: TLSPEditChangeAnnotations;
+    constructor Create;
+    destructor Destroy; override;
     (*
       {
         [id: string /* ChangeAnnotationIdentifier */]: ChangeAnnotation;
@@ -5741,6 +5743,18 @@ begin
   FreeAndNil(willRename);
   FreeAndNil(didDelete);
   FreeAndNil(willDelete);
+  inherited;
+end;
+
+constructor TLSPWorkspaceEdit.Create;
+begin
+  inherited;
+  changes := TObjectList<TLSPEditChanges>.Create;
+end;
+
+destructor TLSPWorkspaceEdit.Destroy;
+begin
+  FreeAndNil(changes);
   inherited;
 end;
 
