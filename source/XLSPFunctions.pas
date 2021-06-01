@@ -1684,6 +1684,7 @@ var
   LArrayObj: ISuperObject;
   LMember: IMember;
   LRange: ISuperObject;
+  LEdit: TLSPTextEdit;
   s: string;
   i: Integer;
 begin
@@ -1709,15 +1710,17 @@ begin
   begin
     if LMember.DataType <> dtObject then Continue;
     LArrayObj := LMember.AsObject;
-    Result.edits[i].newText := LArrayObj.S['newText'];
+    LEdit := TLSPTextEdit.Create;
+    LEdit.newText := LArrayObj.S['newText'];
     if LArrayObj.Expression['range'].DataType = dtObject then
     begin
       LRange := LArrayObj.O['range'];
-      Result.edits[i].range.startPos.line := LRange.O['start'].I['line'];
-      Result.edits[i].range.startPos.character := LRange.O['start'].I['character'];
-      Result.edits[i].range.endPos.line := LRange.O['end'].I['line'];
-      Result.edits[i].range.endPos.character := LRange.O['end'].I['character'];
+      LEdit.range.startPos.line := LRange.O['start'].I['line'];
+      LEdit.range.startPos.character := LRange.O['start'].I['character'];
+      LEdit.range.endPos.line := LRange.O['end'].I['line'];
+      LEdit.range.endPos.character := LRange.O['end'].I['character'];
     end;
+    Result.edits[i] := LEdit;
     Inc(i);
   end;
   if i <> Length(Result.edits) then
