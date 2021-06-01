@@ -536,6 +536,7 @@ var
   i,j,k: Integer;
   params: TLSPTextDocumentEdit;
   edit: TLSPAnnotatedTextEdit;
+  LEdit: TLSPTextEdit;
   LAction: TLSPCodeAction;
   LChange: TLSPEditChanges;
 begin
@@ -669,11 +670,13 @@ begin
             if LArrO.Expression['range'].DataType = dtObject then
             begin
               LRange := LArrO.O['range'];
-              LChange.values[j].newText := LArrO.S['newText'];
-              LChange.values[j].range.startPos.line := LRange.O['start'].I['line'];
-              LChange.values[j].range.startPos.character := LRange.O['start'].I['character'];
-              LChange.values[j].range.endPos.line := LRange.O['end'].I['line'];
-              LChange.values[j].range.endPos.character := LRange.O['end'].I['character'];
+              LEdit := TLSPTextEdit.Create;
+              LEdit.newText := LArrO.S['newText'];
+              LEdit.range.startPos.line := LRange.O['start'].I['line'];
+              LEdit.range.startPos.character := LRange.O['start'].I['character'];
+              LEdit.range.endPos.line := LRange.O['end'].I['line'];
+              LEdit.range.endPos.character := LRange.O['end'].I['character'];
+              LChange.values[j] := LEdit;
               Inc(j);
             end;
           end;
@@ -797,6 +800,7 @@ var
   j,k: Integer;
   params: TLSPTextDocumentEdit;
   edit: TLSPAnnotatedTextEdit;
+  LEdit: TLSPTextEdit;
   LChange: TLSPEditChanges;
 begin
   Result := TLSPCodeAction.Create;
@@ -918,14 +922,16 @@ begin
         if LMem.DataType <> dtObject then Continue;
         LArrO := LMem.AsObject;
 
-        LChange.values[j].newText := LArrO.S['newText'];
         if LArrO.Expression['range'].DataType = dtObject then
         begin
           LRange := LArrO.O['range'];
-          LChange.values[j].range.startPos.line := LRange.O['start'].I['line'];
-          LChange.values[j].range.startPos.character := LRange.O['start'].I['character'];
-          LChange.values[j].range.endPos.line := LRange.O['end'].I['line'];
-          LChange.values[j].range.endPos.character := LRange.O['end'].I['character'];
+          LEdit := TLSPTextEdit.Create;
+          LEdit.newText := LArrO.S['newText'];
+          LEdit.range.startPos.line := LRange.O['start'].I['line'];
+          LEdit.range.startPos.character := LRange.O['start'].I['character'];
+          LEdit.range.endPos.line := LRange.O['end'].I['line'];
+          LEdit.range.endPos.character := LRange.O['end'].I['character'];
+          LChange.values[j] := LEdit;
         end;
         Inc(j);
       end;
@@ -4897,6 +4903,7 @@ var
   i,j: Integer;
   params: TLSPBaseParams;
   edit: TLSPAnnotatedTextEdit;
+  LEdit: TLSPTextEdit;
   LChange: TLSPEditChanges;
 begin
   Result := nil;
@@ -5057,17 +5064,20 @@ begin
         begin
           if LMember.DataType <> dtObject then Continue;
           LArrayObj := LMember.AsObject;
-          LChange.values[i].newText := LArrayObj.S['newText'];
+
+          LEdit := TLSPTextEdit.Create;
+          LEdit.newText := LArrayObj.S['newText'];
 
           // range
           if LArrayObj.Expression['range'].DataType = dtObject then
           begin
             LRange := LArrayObj.O['range'];
-            LChange.values[i].range.startPos.line := LRange.O['startPos'].I['line'];
-            LChange.values[i].range.startPos.character := LRange.O['startPos'].I['character'];
-            LChange.values[i].range.endPos.line := LRange.O['endPos'].I['line'];
-            Lchange.values[i].range.endPos.character := LRange.O['endPos'].I['character'];
+            LEdit.range.startPos.line := LRange.O['startPos'].I['line'];
+            LEdit.range.startPos.character := LRange.O['startPos'].I['character'];
+            LEdit.range.endPos.line := LRange.O['endPos'].I['line'];
+            LEdit.range.endPos.character := LRange.O['endPos'].I['character'];
           end;
+          LChange.values[i] := LEdit;
           Inc(i);
         end;
         if i <> Length(LChange.values) then
