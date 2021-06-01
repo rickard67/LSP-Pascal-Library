@@ -5259,6 +5259,7 @@ begin
     lspWorkspaceDidCreateFiles:       Result := TLSPCreateFilesParams(lspMsg.paramObj).AsJSON;
     lspWorkspaceDidDeleteFiles:       Result := TLSPDeleteFilesParams(lspMsg.paramObj).AsJSON;
     lspWorkspaceDidRenameFiles:       Result := TLSPRenameFilesParams(lspMsg.paramObj).AsJSON;
+    lspWorkspaceSymbol:               Result := TLSPWorkspaceSymbolParams(lspMsg.paramObj).AsJSON;
     lspDidOpenTextDocument:           Result := TLSPDidOpenTextDocumentParams(lspMsg.paramObj).AsJSON;
     lspDidChangeTextDocument:         Result := TLSPDidChangeTextDocumentParams(lspMsg.paramObj).AsJSON;
     lspWillSaveTextDocument:          Result := TLSPWillSaveTextDocumentParams(lspMsg.paramObj).AsJSON;
