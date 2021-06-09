@@ -1272,6 +1272,10 @@ end;
 The document formatting request is sent from the client to the server to format a 
 whole document.
 
+The returned array should be used to edit your document. You should always apply changes from
+the end of the document. Some servers may reverse the returned array for you. Others
+may not. So you need to check the returned array.
+
 ```
 // Event to catch response from the server
 FLSPClient1.OnDocumentFormatting := OnDocumentFormatting1;
@@ -1407,10 +1411,23 @@ var
   i: Integer;
   edit: TLSPTextEdit;
 begin
-  for i := 0 to values.edits.Count - 1 do
+  // The returned array may be reversed by the server so we need to check it.
+  // You should apply changes from the end of document to the beginning.
+  if IsReversed(value.edits) then
+  begin 
+    for i := 0 to Length(value.edits) - 1 do
+    begin
+      edit := value.edits[i];
+      ModifyDocument(edit.newText, edit.range);
+    end;
+  end
+  else
   begin
-    edit := values.edits[i];
-    ModifyDocument(edit.newText, edit.range);
+    for i := Length(value.edits) - 1 downto 0 do
+    begin
+      edit := value.edits[i];
+      ModifyDocument(edit.newText, edit.range);
+    end;
   end;
 end;
 ```
