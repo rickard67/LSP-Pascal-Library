@@ -1290,16 +1290,29 @@ begin
   FLSPClient.SendRequest(lspDocumentFormatting, '', params);
 end;
 
-procedure OnDocumentFormatting1(Sender: TObject; const values: TLSPTextEditValues; const errorCode: Integer; 
+procedure OnDocumentFormatting1(Sender: TObject; const value: TLSPTextEditValues; const errorCode: Integer; 
     const errorMessage: string);
 var
   i: Integer;
   edit: TLSPTextEdit;
 begin
-  for i := 0 to values.edits.Count - 1 do
+  // The returned array may be reversed by the server so we need to check it.
+  // You should apply changes from the end of document to the beginning.
+  if IsReversed(value.edits) then
+  begin 
+    for i := 0 to Length(value.edits) - 1 do
+    begin
+      edit := value.edits[i];
+      ModifyDocument(edit.newText, edit.range);
+    end;
+  end
+  else
   begin
-    edit := values.edits[i];
-    ModifyDocument(edit.newText, edit.range);
+    for i := Length(value.edits) - 1 downto 0 do
+    begin
+      edit := value.edits[i];
+      ModifyDocument(edit.newText, edit.range);
+    end;
   end;
 end;
 ```
@@ -1332,16 +1345,29 @@ begin
   FLSPClient.SendRequest(lspDocumentRangeFormatting, '', params);
 end;
 
-procedure OnDocumentRangeFormatting1(Sender: TObject; const values: TLSPTextEditValues; const errorCode: Integer; 
+procedure OnDocumentRangeFormatting1(Sender: TObject; const value: TLSPTextEditValues; const errorCode: Integer; 
     const errorMessage: string);
 var
   i: Integer;
   edit: TLSPTextEdit;
 begin
-  for i := 0 to values.edits.Count - 1 do
+  // The returned array may be reversed by the server so we need to check it.
+  // You should apply changes from the end of document to the beginning.
+  if IsReversed(value.edits) then
+  begin 
+    for i := 0 to Length(value.edits) - 1 do
+    begin
+      edit := value.edits[i];
+      ModifyDocument(edit.newText, edit.range);
+    end;
+  end
+  else
   begin
-    edit := values.edits[i];
-    ModifyDocument(edit.newText, edit.range);
+    for i := Length(value.edits) - 1 downto 0 do
+    begin
+      edit := value.edits[i];
+      ModifyDocument(edit.newText, edit.range);
+    end;
   end;
 end;
 ```
