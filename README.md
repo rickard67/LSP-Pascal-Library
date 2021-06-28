@@ -951,14 +951,17 @@ begin
   params.textDocument.uri := 'c:\source\foo.js';
   
   // Code action kind
-  SetLength(params.context.only, 1);
-  params.context.only[0] := 'refactor.rewrite';
+  params.context.only := ['quickfix','refactor','refactor.extract','refactor.inline','refactor.rewrite',
+                          'source','source.organizeImports'];
   
   // Range
   params.range.startPos.line := 2;
   params.range.startPos.character := 0;
   params.range.endPos.line := 16;
-  params.range.endPos.character := 0;  
+  params.range.endPos.character := 0;
+  
+  // Include diagnostics errors inside the passed range
+  ...  
   
   FLSPClient1.SendRequest(lspCodeAction, '', params);
 end;
@@ -967,18 +970,60 @@ procedure OnCodeAction1(Sender: TObject; const value: TLSPCodeActionResponse; co
     const errorMessage: string);
 var
   i: Integer;
-  title: string;
-  kind: TLSPCodeActionKind;
-  edit: TLSPWorkspaceEdit;
+  item: TLSPCodeAction;
+  f: TSelectForm;
 begin
-  for i := 0 to value.codeActions.Count - 1 do
-  begin
-    title := value.codeActions[i].title;
-    kind := value.codeActions[i].kind;
-    edit := value.codeActions[i].edit;
-    AddToList(title, kind, edit);
+  f := TSelectForm.Create(Self);
+  try
+    for i := 0 to value.codeActions.Count - 1 do
+    begin
+      item := TLSPCodeAction.Create;
+      if value.codeActions[i].title <> '' then
+      begin
+        // Code action 
+        item.title := value.codeActions[i].title;
+        item.kind := value.codeActions[i].kind;
+        if Assigned(value.codeActions[i].edit) then
+        begin
+          item.edit := TLSPWorkspaceEdit.Create;
+          if Assigned(value.codeActions[i].edit.changes) then
+            item.edit.changes.Create(value.codeActions[i].edit.changes);
+          if Length(value.codeActions[i].edit.documentChanges) > 0 then
+            item.edit.documentChanges := Copy(value.codeActions[i].edit.documentChanges);
+        end;
+      end
+      else
+      begin
+        // Command
+        item.title := value.codeActions[i].command.title;
+      end;
+      item.command := value.codeActions[i].command;
+      item.data := value.codeActions[i].data;
+
+      f.List.Items.AddObject(item.title, item);
+    end;
+    
+    if f.List.Items.Count = 0 then Exit;
+
+    if f.ShowModal = mrOK then
+    begin
+      if f.List.ItemIndex >= 0 then
+      begin
+        obj := TLSPCodeAction(f.List.Items.Objects[f.List.ItemIndex]);
+
+        // Check for edit or command. If none found - send a codeActionResolve
+        if Assigned(obj.edit) then
+          LSPApplyChanges(obj.edit)
+        else if obj.command.command <> '' then
+          LSPSendExecuteCommand(obj.command)
+        else
+          LSPSendCodeActionResolve(obj);
+        end;
+      end;
+    end;
+  finally
+    f.Release;
   end;
-  ApplyChanges;
 end;
 ```
 
@@ -1005,14 +1050,51 @@ end;
 
 procedure OnCodeActionResolve1(Sender: TObject; const value: TLSPCodeAction; const errorCode: Integer; 
     const errorMessage: string);
-var
-  title: string;
-  edit: TLSPWorkspaceEdit;
 begin
-  title := value.title;
-  edit := value.edit;
-  
-  ApplyChanges(title, edit);
+  if Assigned(value.edit) then
+    LSPApplyChanges(value.edit)
+end;
+```
+
+#### Execute Command Request
+
+The workspace/executeCommand request is sent from the client to the server to trigger
+command execution on the server.
+
+The command and arguments may have come from the server after a codeAction request.
+
+In most cases the server creates a WorkspaceEdit structure and applies the changes to
+the workspace using the request workspace/applyEdit which is sent from the server to the client.
+```
+// Set event handlers
+LSPClient1.OnExecuteCommand := OnExecuteCommand1;
+LSPClient1.OnWorkspaceApplyEdit := OnWorkspaceApplyEdit1;
+
+procedure LSPSendExecuteCommand(const item: TLSPCommand);
+var
+  params: TLSPExecuteCommandParams;
+begin
+  if not LClient.IsRequestSupported(lspWorkspaceExecuteCommand) then Exit;
+
+  // Send execute command request to server
+  params := TLSPExecuteCommandParams.Create;
+  params.command := item.command;
+  params.arguments := item.arguments;
+
+  LClient.SendRequest(lspWorkspaceExecuteCommand, '', params);
+end;
+
+procedure OnWorkspaceApplyEdit1(Sender: TObject; const value: TLSPApplyWorkspaceEditParams;
+  var responseValue: TLSPApplyWorkspaceEditResponse; var errorCode: Integer; var errorMessage: string);
+begin
+  LSPApplyChanges(value.edit);
+end;
+
+procedure OnExecuteCommand1(Sender: TObject; Json: string; const errorCode: Integer;
+  const errorMsg: string);
+begin
+  if errorMsg <> '' then
+    OnError(Sender, errorCode, errorMsg);
 end;
 ```
 
@@ -1432,37 +1514,6 @@ begin
 end;
 ```
 
-#### Execute Command Request
-
-The workspace/executeCommand request is sent from the client to the server to trigger
-command execution on the server.
-
-```
-// Set event handler
-LSPClient1.OnExecuteCommand := OnExecuteCommand1;
-
-// Command
-sc := 'server.command-112233';
-
-// Arguments (optional)
-args := '[{"range":{"end":{"character":14,"line":14},"start":{"character":0,"line":14}},
-         "uri":"file:///Sources/main.rs"},"create_function"]';
-         
-// Send request
-LSPClient1.SendExecuteCommand(sc, args);
-
-You can also create a class or record and use x-superobject to create the JSON string.
-
-myArgs := TMyArgs;
-
-// Set arguments
-myArgs.range.start.character := 0;
-...
-
-args := '[' + myArgs.AsJSON + ']';
-
-```
-
 #### DidChangeWorkspaceFolders Notification
 
 The workspace/didChangeWorkspaceFolders notification is sent from the client to the server 
@@ -1496,23 +1547,23 @@ E.g. this could be sent to a CSS server.
 
 ```
   s := '{"settings": {
-	        "css": {
-	            "lint": {
-	                "argumentsInColorFunction": "error",
-	                "boxModel": "ignore",
-	                "compatibleVendorPrefixes": "ignore",
-	                ...
-	            },
-	            "trace": {
-	                "server": "verbose"
-	            },
-	            "validate": true
-	        },
-	        "scss": {
-	            ...
-	        }
-	        }
-	      }';
+          "css": {
+              "lint": {
+                  "argumentsInColorFunction": "error",
+                  "boxModel": "ignore",
+                  "compatibleVendorPrefixes": "ignore",
+                  ...
+              },
+              "trace": {
+                  "server": "verbose"
+              },
+              "validate": true
+          },
+          "scss": {
+              ...
+          }
+          }
+        }';
 
    LSPClient.SendRequest(lspDidChangeConfiguration, '', nil, s);
 ```
