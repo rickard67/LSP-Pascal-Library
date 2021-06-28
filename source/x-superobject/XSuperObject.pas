@@ -1722,7 +1722,7 @@ begin
     Value := Prop.GetValue(Data);
 
     // Ignore properties = nil
-    if Value.IsEmpty then Continue;
+    if not Value.IsArray and Value.IsEmpty then Continue;
 
     // * Read Reval Attribute
        RevalAttribute := GetREVAL(Attributes);
@@ -1748,7 +1748,7 @@ begin
     Value := Field.GetValue(Data);
 
     // Ignore fields = nil
-    if Value.IsEmpty then Continue;
+    if not Value.IsArray and Value.IsEmpty then Continue;
 
     // * Read Reval Attribute
        RevalAttribute := GetREVAL(Field.GetAttributes);

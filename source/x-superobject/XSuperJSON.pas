@@ -1726,7 +1726,9 @@ var
   I,L: Integer;
 begin
   if FNull then
-     Str.AppendVal( cNull )
+   begin
+     Str.AppendVal( cNull );
+   end
   else
   begin
     Str.Append('[', True);

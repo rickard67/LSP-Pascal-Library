@@ -440,7 +440,7 @@ type
 
     // Arguments that the command handler should be
     // invoked with.
-    arguments: string;
+    arguments: Variant;
   end;
 
   TLSPDocumentFilter = record
@@ -2835,7 +2835,7 @@ type
     command: string;
 
     // Arguments that the command should be invoked with.
-    arguments: string;
+    arguments: Variant;
   end;
 
   TLSPApplyWorkspaceEditParams = class(TLSPBaseParams)

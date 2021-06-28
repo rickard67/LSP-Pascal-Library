@@ -56,7 +56,8 @@ function JsonDocumentLinkResponseToObject(const LJson: ISuperObject; var ErrorCo
     path: string = ''): TLSPDocumentLinkResponse;
 function JsonDocumentLinkResolveToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPDocumentLink;
 function JsonExecuteCommandResult(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): string;
-function JsonFindReferencesResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPFindReferencesResponse;
+function JsonFindReferencesResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string;
+    const path: string = ''): TLSPFindReferencesResponse;
 function JsonFoldingRangeResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string; const
     path: string = ''): TLSPFoldingRangeResponse;
 function JsonGotoResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer;
@@ -265,6 +266,18 @@ begin
 
   LJson := TSuperObject.Create(Result);
   LJson.Raw['data'] := item.data;
+
+  Result := LJson.AsJSON;
+end;
+
+function LSPExecuteCommandParamsToJSON(const item: TLSPExecuteCommandParams): string;
+var
+  LJson: ISuperObject;
+begin
+  Result := item.AsJSON;
+
+  LJson := TSuperObject.Create(Result);
+  LJson.Raw['arguments'] := item.arguments;
 
   Result := LJson.AsJSON;
 end;
@@ -569,12 +582,13 @@ begin
     LArrayO := LMember.AsObject;
 
     LAction := TLSPCodeAction.Create;
-    if (LArrayO.S['command'] <> '') then
+    if LArrayO.Expression['command'].DataType = dtString then
     begin
       // TLSPCommand
       LAction.command.title := LArrayO.S['title'];
       LAction.command.command := LArrayO.S['command'];
-      LAction.command.arguments := LArrayO.S['arguments'];
+      if LArrayO.Expression['arguments'].DataType = dtArray then
+        LAction.command.arguments := LArrayO.A['arguments'].AsJSON;
     end
     else
     begin
@@ -769,7 +783,8 @@ begin
     begin
       LAction.command.title := LArrayO.O['command'].S['title'];
       LAction.command.command := LArrayO.O['command'].S['command'];
-      LAction.command.arguments := LArrayO.O['command'].S['arguments'];
+      if LArrayO.O['command'].Expression['arguments'].DataType = dtArray then
+        LAction.command.arguments := LArrayO.O['command'].A['arguments'].AsJSON;
     end;
 
     // Data (any)
@@ -1018,7 +1033,8 @@ begin
   begin
     Result.command.title := LJsonResult.O['command'].S['title'];
     Result.command.command := LJsonResult.O['command'].S['command'];
-    Result.command.arguments := LJsonResult.O['command'].S['arguments'];
+    if LJsonResult.O['command'].Expression['arguments'].DataType = dtArray then
+      Result.command.arguments := LJsonResult.O['command'].A['arguments'].AsJSON;
   end;
 
   // Data (any)
@@ -1036,7 +1052,7 @@ end;
 function JsonCodeLensToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string):
     TLSPCodeLensResponse;
 var
-  LArray: ISuperArray;
+  LArray,LArr2: ISuperArray;
   LRange: ISuperObject;
   LArrayO: ISuperObject;
   LMember: IMember;
@@ -1084,7 +1100,8 @@ begin
     begin
       lens.command.title := LArrayO.O['command'].S['title'];
       lens.command.command := LArrayO.O['command'].S['command'];
-      lens.command.arguments := LArrayO.O['command'].S['arguments'];
+      if LArrayO.O['command'].Expression['arguments'].DataType = dtArray then
+        lens.command.arguments := LArrayO.O['command'].A['arguments'].AsJSON;
     end;
 
     // Data
@@ -1140,7 +1157,8 @@ begin
   begin
     Result.command.title := LJsonResult.O['command'].S['title'];
     Result.command.command := LJsonResult.O['command'].S['command'];
-    Result.command.arguments := LJsonResult.O['command'].S['arguments'];
+    if LJsonResult.O['command'].Expression['arguments'].DataType = dtArray then
+      Result.command.arguments := LJsonResult.O['command'].A['arguments'].AsJSON;
   end;
 
   // Data
@@ -1371,7 +1389,8 @@ var
       begin
         item.command.title := LArrObj.O['command'].S['title'];
         item.command.command := LArrObj.O['command'].S['command'];
-        item.command.arguments := LArrObj.O['command'].S['arguments'];
+        if LArrObj.O['command'].Expression['arguments'].DataType = dtArray then
+          item.command.arguments := LArrObj.O['command'].A['arguments'].AsJSON;
       end;
 
       // Data (any JSON data that is preserved on a completion item between a completion and a completion resolve request.)
@@ -1574,7 +1593,8 @@ begin
   begin
     Result.command.title := LObject.O['command'].S['title'];
     Result.command.command := LObject.O['command'].S['command'];
-    Result.command.arguments := LObject.O['command'].S['arguments'];
+    if LObject.O['command'].Expression['arguments'].DataType = dtArray then
+      Result.command.arguments := LObject.O['command'].A['arguments'].AsJSON;
   end;
 
   // Data (any JSON data that is preserved on a completion Result between a completion and a completion resolve request.)
@@ -2054,7 +2074,8 @@ begin
   end;
 end;
 
-function JsonFindReferencesResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPFindReferencesResponse;
+function JsonFindReferencesResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string;
+    const path: string = ''): TLSPFindReferencesResponse;
 var
   LArray: ISuperArray;
   s: string;
@@ -2079,7 +2100,9 @@ begin
   ErrorCode := 0;
   ErrorMessage := '';
 
-  if LJson['result'].DataType <> dtNil then
+  if path <> '' then
+    s := path
+  else if LJson['result'].DataType <> dtNil then
     s := 'result'
   else
     s := 'partial result';
@@ -3348,6 +3371,11 @@ begin
     lspMoniker:
     begin
       Result := JsonMonikerToObject(LJson, n, s, 'params.value');
+      Exit;
+    end;
+    lspReferences:
+    begin
+      Result := JsonFindReferencesResponseToObject(LJson, n, s, 'params.value');
       Exit;
     end;
     lspSelectionRange:
@@ -5053,9 +5081,9 @@ begin
       LChange := TLSPEditChanges.Create;
       LChange.uri := sn;
 
-      if LObject.Expression[sn].DataType = dtArray then
+      if LObject.CurrentValue.DataType = dtArray then
       begin
-        LArray := LObject.A[sn];
+        LArray := TCast.Create(LObject.CurrentValue).AsArray;
         SetLength(LChange.values,LArray.Length);
 
         // Retrieve edit's
@@ -5072,10 +5100,10 @@ begin
           if LArrayObj.Expression['range'].DataType = dtObject then
           begin
             LRange := LArrayObj.O['range'];
-            LEdit.range.startPos.line := LRange.O['startPos'].I['line'];
-            LEdit.range.startPos.character := LRange.O['startPos'].I['character'];
-            LEdit.range.endPos.line := LRange.O['endPos'].I['line'];
-            LEdit.range.endPos.character := LRange.O['endPos'].I['character'];
+            LEdit.range.startPos.line := LRange.O['start'].I['line'];
+            LEdit.range.startPos.character := LRange.O['start'].I['character'];
+            LEdit.range.endPos.line := LRange.O['end'].I['line'];
+            LEdit.range.endPos.character := LRange.O['end'].I['character'];
           end;
           LChange.values[i] := LEdit;
           Inc(i);
@@ -5252,7 +5280,7 @@ begin
     lspWorkDoneProgress:              Result := TLSPWorkDoneProgressParams(lspMsg.paramObj).AsJSON;
     lspDidChangeWorkspaceFolders:     Result := TLSPDidChangeWorkspaceFoldersParams(lspMsg.paramObj).AsJSON;
     lspWorkspaceApplyEdit:            Result := TLSPApplyWorkspaceEditParams(lspMsg.paramObj).AsJSON;
-    lspWorkspaceExecuteCommand:       Result := TLSPExecuteCommandParams(lspMsg.paramObj).AsJSON;
+    lspWorkspaceExecuteCommand:       Result := LSPExecuteCommandParamsToJSON(TLSPExecuteCommandParams(lspMsg.paramObj));
     lspWorkspaceWillCreateFiles:      Result := TLSPCreateFilesParams(lspMsg.paramObj).AsJSON;
     lspWorkspaceWillDeleteFiles:      Result := TLSPDeleteFilesParams(lspMsg.paramObj).AsJSON;
     lspWorkspaceWillRenameFiles:      Result := TLSPRenameFilesParams(lspMsg.paramObj).AsJSON;

@@ -52,7 +52,7 @@ type
   TOnDocumentLinkResolveEvent = procedure(Sender: TObject; const value: TLSPDocumentLink; const errorCode: Integer; const errorMessage: string) of object;
   TOnDocumentSymbolsEvent = procedure(Sender: TObject; const value: TLSPDocumentSymbolsResponse; const errorCode: Integer; const errorMessage: string) of object;
   TOnErrorEvent = procedure(Sender: TObject; const errorCode: Integer; const errorMsg: string) of object;
-  TOnExecuteCommandRequestEvent = procedure(Sender: TObject; Json: string) of object;
+  TOnExecuteCommandRequestEvent = procedure(Sender: TObject; Json: string; const errorCode: Integer; const errorMsg: string) of object;
   TOnExitEvent = procedure(Sender: TObject; exitCode: Integer; const bRestartServer: Boolean) of object;
   TOnFindReferencesEvent = procedure(Sender: TObject; const value: TLSPFindReferencesResponse; const errorCode: Integer; const errorMessage: string) of object;
   TOnFoldingRangeEvent = procedure(Sender: TObject; const value: TLSPFoldingRangeResponse; const errorCode: Integer; const errorMessage: string) of object;
@@ -1441,18 +1441,9 @@ begin
       // The result from the response can be any type of object. Or it can be null.
       LStr := JsonExecuteCommandResult(LJson, errorCode, errorMessage);
 
-      // Check if the shutdown request was successful
-      if errorCode <> 0 then
-      begin
-        // OnError event
-        if Assigned(FOnError) then
-          FOnError(Self, errorCode, errorMessage);
-        Exit;
-      end;
-
       // OnExecuteCommandRequest event
       if Assigned(FOnExecuteCommandRequest) then
-        FOnExecuteCommandRequest(Self, LStr);
+        FOnExecuteCommandRequest(Self, LStr, errorCode, errorMessage);
     end;
 
     // workspace/workspaceFolders request is sent from the server to the client to fetch the current open list
