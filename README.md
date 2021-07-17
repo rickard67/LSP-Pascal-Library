@@ -862,6 +862,7 @@ begin
   if not FLSPClient1.IsRequestSupported(lspDocumentHighlight) then Exit;
   
   params := TLSPDocumentHighlightParams.Create;
+  params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.position.line := 12;
   params.position.character := 11;
   

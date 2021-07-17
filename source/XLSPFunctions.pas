@@ -5321,7 +5321,7 @@ begin
     lspPrepareRename:                 Result := TLSPPrepareRenameParams(lspMsg.paramObj).AsJSON;
     lspFoldingRange:                  Result := TLSPFoldingRangeParams(lspMsg.paramObj).AsJSON;
     lspSelectionRange:                Result := TLSPSelectionRangeParams(lspMsg.paramObj).AsJSON;
-    lspPrepareCallHierarchy:          Result := '';
+    lspPrepareCallHierarchy:          Result := TLSPCallHierarchyPrepareParams(lspMsg.paramObj).AsJSON;
     lspCallHierarchyIncommingCalls:   Result := TLSPCallHierarchyIncomingCallsParams(lspMsg.paramObj).AsJSON;
     lspCallHierarchyOutgoingCalls:    Result := TLSPCallHierarchyOutgoingCallsParams(lspMsg.paramObj).AsJSON;
     lspSemanticTokensFull:            Result := TLSPSemanticTokensParams(lspMsg.paramObj).AsJSON;
