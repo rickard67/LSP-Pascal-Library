@@ -35,7 +35,7 @@ intelephense.cmd
 --stdio
 
 ##### Initial dir
-<AppData>\Roaming\npm
+%appdata%\npm
 
 ##### LSP root path
 ..\LSP-Pascal-Library\demo\examples\Class Member
@@ -107,7 +107,10 @@ begin
   // Set only the options your client can handle.
   
   // Set root path and uri
-  value.AddRoot(FServerRootPath);
+  value.AddRoot(FSourcePath);
+  
+  // Workspace folders
+  value.AddWorkspaceFolders(FStringlist);
 
   // Client Capabilities
   
@@ -216,7 +219,7 @@ var
   params: TLSPDidOpenTextDocumentParams;
 begin
   params := TLSPDidOpenTextDocumentParams.Create;
-  params.textDocument.uri := FilePathToUri('c:\source\foo.cs');
+  params.textDocument.uri := FilePathToUri('c:\source\foo.php');
   params.textDocument.version := 1;
   params.textDocument.languageId := 'php';
   params.textDocument.text := Memo1.text;
