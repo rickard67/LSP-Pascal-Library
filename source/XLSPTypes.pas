@@ -2399,7 +2399,7 @@ type
     procedure AddWorkspaceCodeLens(const refreshSupport: Boolean);
     procedure AddWorkspaceDidChangeConfiguration(const dynamicRegistration: Boolean);
     procedure AddWorkspaceDidChangeWatchedFiles(const dynamicRegistration: Boolean);
-    procedure AddWorkspaceEdit(const documentChanges, normalizeLineEndings: Boolean; const failureHandling: string = '';
+    procedure AddWorkspaceEdit(const documentChanges, normalizeLineEndings: Boolean; const failureHandling: string = 'transactional';
         const changeAnnotationSupport: Boolean = False; const changeAnnotationGroupsOnLabel: Boolean = False; const
         resourceOperations: TArray<TLSPResourceOperationKind> = nil);
     procedure AddWorkspaceExecuteCommand(const dynamicRegistration: Boolean);
@@ -5142,7 +5142,7 @@ begin
 end;
 
 procedure TLSPClientCapabilities.AddWorkspaceEdit(const documentChanges, normalizeLineEndings: Boolean; const
-    failureHandling: string = ''; const changeAnnotationSupport: Boolean = False; const changeAnnotationGroupsOnLabel:
+    failureHandling: string = 'transactional'; const changeAnnotationSupport: Boolean = False; const changeAnnotationGroupsOnLabel:
     Boolean = False; const resourceOperations: TArray<TLSPResourceOperationKind> = nil);
 begin
   // workspace
