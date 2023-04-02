@@ -1190,7 +1190,7 @@ var
   IExpr: ISuperExpression;
 begin
   IExpr :=  TSuperExpression.Create(FJSONObj, Expr, True);
-  Result := IExpr.DataType <> dtNil;
+  Result := (IExpr.DataType <> dtNil) and (IExpr.DataType <> dtNull);
 end;
 
 function TSuperObject.AsType<T>: T;

@@ -2416,7 +2416,7 @@ type
 	  // Is null if the process has not been started by another process.
 	  // If the parent process is not alive, then the server should exit
 	  // (see exit notification) its process.
-	  processId: Variant; // integer | null
+	  processId: Integer; // integer | null
 
 	  // Information about the client
     //

@@ -5362,8 +5362,6 @@ begin
   else
     sParams := CreateJSONRequestParam(lspKind, lspMsg);
 
-  if sParams = '' then sParams := 'null';
-
   // Create a request or notification and insert params
   if IsRequest(TLSPKind(nId)) then
   begin
@@ -5396,7 +5394,11 @@ begin
 
   // Set the method string
   if method <> '' then
-    sMethod := method
+  begin
+    sMethod := method;
+    if (Length(sMethod) > 0) and (sMethod[1] <> #34) then
+      sMethod := #34 + sMethod + #34;
+  end
   else
     sMethod := GetMethodFromKind(lspKind);
 
@@ -5411,6 +5413,8 @@ begin
     sResult := resultString
   else
     sResult := CreateJSONRequestParam(lspKind, lspMsg);
+
+  if Length(sResult) = 0 then sResult := 'null';
 
   // Create the error string
   if Assigned(lspMsg.errorObj) then

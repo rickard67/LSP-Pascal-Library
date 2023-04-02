@@ -1375,13 +1375,14 @@ begin
         FOnWorkDoneProgress(Self, LStr, errorCode, errorMessage);
 
       // An error occurred. Send the error message back to the server.
+      // The server doesn't expect a response to this request, unless there is an error.
       if errorCode <> 0 then
       begin
         params := TLSPResponseError.Create;
         TLSPResponseError(params).code := errorCode;
         TLSPResponseError(params).msg := errorMessage;
+        SendResponse(id, LSPIdStrings[LKind], nil, params);
       end;
-      SendResponse(id, LSPIdStrings[LKind], nil, params);
       Result := True;
     end;
 
