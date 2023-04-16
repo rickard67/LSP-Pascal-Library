@@ -14,7 +14,7 @@
  * Embarcadero Technologies, Inc is not permitted to use or redistribute
  * this source code without explicit permission.
  *
- * Copyright © 2021 Rickard Johansson. All rights reserved.
+ * Copyright © 2023 Rickard Johansson. All rights reserved.
  *
 *)
 
@@ -531,7 +531,7 @@ var
   errorCode: Integer;
   errorMessage: string;
   params,rparams: TLSPBaseParams;
-  LInt: Integer;
+  LInt,LId: Integer;
   ws,LStr: string;
   LValue: string;
   bValue,bValue2: Boolean;
@@ -559,6 +559,7 @@ begin
   end;
   method := LJson.AsObject.S['method'];
 
+  LId := id;
   if (id < 0) then
     id := GetKindFromMethod(method);
 
@@ -807,13 +808,15 @@ begin
       // An error occurred. Send the error message back to the server.
       if errorCode <> 0 then
       begin
+        LId := id;
         params := TLSPResponseError.Create;
         TLSPResponseError(params).code := errorCode;
         TLSPResponseError(params).msg := errorMessage;
       end;
 
-      // Send responce to the server
-      SendResponse(id,LSPIdStrings[LKind],nil,params,lsprVoid);
+      // Send responce to the server if the server expect a response (LId > -1)
+      if LId > -1 then
+        SendResponse(id,LSPIdStrings[LKind],nil,params,lsprVoid);
 
       Result := True;
     end;
@@ -876,13 +879,15 @@ begin
       // An error occurred. Send the error message back to the server.
       if errorCode <> 0 then
       begin
+        LId := id;
         params := TLSPResponseError.Create;
         TLSPResponseError(params).code := errorCode;
         TLSPResponseError(params).msg := errorMessage;
       end;
 
-      // Send responce to the server
-      SendResponse(id,LSPIdStrings[LKind], nil, params, lsprVoid);
+      // Send responce to the server if the server expect a response (LId > -1)
+      if LId > -1 then
+        SendResponse(id,LSPIdStrings[LKind], nil, params, lsprVoid);
 
       Result := True;
     end;
@@ -1352,13 +1357,15 @@ begin
       // An error occurred. Send the error message back to the server.
       if errorCode <> 0 then
       begin
+        LId := id;
         params := TLSPResponseError.Create;
         TLSPResponseError(params).code := errorCode;
         TLSPResponseError(params).msg := errorMessage;
       end;
 
-      // Send responce to the server
-      SendResponse(id,LSPIdStrings[LKind],nil,params,lsprVoid);
+      // Send responce to the server if the server expect a response (LId > -1)
+      if LId > -1 then
+        SendResponse(id,LSPIdStrings[LKind],nil,params,lsprVoid);
 
       Result := True;
     end;

@@ -14,7 +14,7 @@
  * Embarcadero Technologies, Inc is not permitted to use or redistribute
  * this source code without explicit permission.
  *
- * Copyright © 2021 Rickard Johansson. All rights reserved.
+ * Copyright © 2023 Rickard Johansson. All rights reserved.
  *
 *)
 
@@ -5366,14 +5366,17 @@ begin
   if IsRequest(TLSPKind(nId)) then
   begin
     // Request
-    s := '{"jsonrpc": "2.0","id": ' + sId + ',"method": ' + sMethod + ',"params": ';
+    s := '{"jsonrpc": "2.0","id": ' + sId + ',"method": ' + sMethod;
   end
   else
   begin
     // Notification
-    s := '{"jsonrpc": "2.0","method": ' + sMethod + ',"params": ';
+    s := '{"jsonrpc": "2.0","method": ' + sMethod;
   end;
-  s := s + sParams;
+
+  if sParams <> '' then
+    s := s + ',"params": ' + sParams;
+
   Result := s + '}';
 end;
 
@@ -5385,8 +5388,10 @@ var
   sResult,sError: string;
   sId: string;
   sMethod: string;
+  bVoid: Boolean;
 begin
   sError := '';
+  bVoid := False;
 
   // Get id
   nId := Ord(lspMsg.id);
@@ -5406,7 +5411,7 @@ begin
   if resultType = lsprNull then
     sResult := 'null'
   else if resultType = lsprVoid then
-    sResult := 'void'
+    bVoid := True
   else if resultType = lsprEmptyArray then
     sResult := '[]'
   else if resultType = lsprString then
@@ -5421,8 +5426,11 @@ begin
     sError := TLSPResponseError(lspMsg.errorObj).AsJSON;
 
   // Create the request and insert params
-  s := '{"jsonrpc": "2.0","id": ' + sId + ',"method": ' + sMethod + ',"result": ';
-  s := s + sResult;
+  if bVoid then
+    s := '{"jsonrpc": "2.0","id": ' + sId + ',"method": ' + sMethod
+  else
+    s := '{"jsonrpc": "2.0","id": ' + sId + ',"method": ' + sMethod + ',"result": ' + sResult;
+
   if sError <> '' then
     s := s + ',"error: ' + sError;
   Result := s + '}';
