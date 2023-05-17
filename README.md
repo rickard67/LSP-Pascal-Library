@@ -11,7 +11,7 @@ A language server protocal client written in Pascal (Delphi).
    - [Send requests and notifications to the server](#send-requests-and-notifications-to-the-server)
    - [Notifications or responces sent from the server](#notifications-or-responces-sent-from-the-server)
 - [Initialize](#initialize)
-- [Register/Unregister Capability](#register/unregister-capability)
+- [Register/Unregister Capability](#registerunregister-capability)
 - [Closing or exiting the server](#closing-or-exiting-the-server)
 - [Text Document Synchronization](#text-document-synchronization)
    - [DidOpenTextDocument Notification](#didopentextdocument-notification)
