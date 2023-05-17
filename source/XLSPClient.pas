@@ -44,6 +44,7 @@ type
   TOnCompletionItemResolveEvent = procedure(Sender: TObject; const item: TLSPCompletionItem; const errorCode: Integer; const errorMessage: string) of object;
   TOnConfigurationRequestEvent = procedure(Sender: TObject; const values: TLSPConfigurationParams; var AJsonResult: string; var errorCode: Integer; var errorMessage: string) of object;
   TOnDocumentColorEvent = procedure(Sender: TObject; const values: TLSPColorInformationValues; const errorCode: Integer; const errorMessage: string) of object;
+  TOnDocumentDiagnosticEvent = procedure(Sender: TObject; const kind: string; const resultId: string; const items: TArray<TLSPDiagnostic>; const errorCode: Integer; const errorMessage: string; const retriggerRequest: Boolean) of object;
   TOnDocumentFormattingEvent = procedure(Sender: TObject; const value: TLSPTextEditValues; const errorCode: Integer; const errorMessage: string) of object;
   TOnDocumentOnTypeFormattingEvent = procedure(Sender: TObject; const value: TLSPTextEditValues; const errorCode: Integer; const errorMessage: string) of object;
   TOnDocumentRangeFormattingEvent = procedure(Sender: TObject; const value: TLSPTextEditValues; const errorCode: Integer; const errorMessage: string) of object;
@@ -67,10 +68,11 @@ type
   TOnLogTraceEvent = procedure(Sender: TObject; const value: TLSPLogTraceParams) of object;
   TOnMonikerEvent = procedure(Sender: TObject; const values: TLSPMonikerResult; const errorCode: Integer; const errorMessage: string) of object;
   TOnPrepareCallHierarchyEvent = procedure(Sender: TObject; const value: TLSPPrepareCallHierarchyResponse; const errorCode: Integer; const errorMessage: string) of object;
+  TOnPrepareTypeHierarchyEvent = procedure(Sender: TObject; const value: TLSPPrepareTypeHierarchyResponse; const errorCode: Integer; const errorMessage: string) of object;
   TOnPrepareRenameEvent = procedure(Sender: TObject; const value: TLSPPrepareRenameResponse; const errorCode: Integer; const errorMessage: string) of object;
   TOnPublishDiagnostics = procedure(Sender: TObject; const uri: string; const version: Cardinal; const diagnostics: TArray<TLSPDiagnostic>) of object;
   TOnProgressEvent = procedure(Sender: TObject; const id: TLSPKind; const value: TLSPBaseParams) of object;
-  //TOnRegisterCapabilityEvent = procedure(Sender: TObject; const values: TLSPRegistrations; var errorCode: Integer; var errorMessage: string) of object;
+  TOnRegisterCapabilityEvent = procedure(Sender: TObject; const values: TLSPRegistrations; var errorCode: Integer; var errorMessage: string) of object;
   TOnRenameEvent = procedure(Sender: TObject; const value: TLSPWorkspaceEdit; const errorCode: Integer; const errorMessage: string) of object;
   TOnSelectionRangeEvent = procedure(Sender: TObject; const value: TLSPSelectionRangeResponse; const errorCode: Integer; const errorMessage: string) of object;
   TOnSemanticTokensFullEvent = procedure(Sender: TObject; const value: TLSPSemanticTokens; const errorCode: Integer; const errorMessage: string) of object;
@@ -83,10 +85,17 @@ type
   TOnShowMessageRequestEvent = procedure(Sender: TObject; const ntype: TLSPMessageType; const msg: string; const sActionValues: TArray<string>; var sAction: string) of object;
   TOnShutdownEvent = procedure(Sender: TObject; const errorCode: Integer; const errorMessage: string) of object;
   TOnTelemetryEvent = procedure(Sender: TObject; Json: string) of object;
-  //TOnUnegisterCapabilityEvent = procedure(Sender: TObject; const values: TLSPUnregistrations; var errorCode: Integer; var errorMessage: string) of object;
+  TOnInlayHintEvent = procedure(Sender: TObject; const values: TLSPInlayHintResult; const errorCode: Integer; const errorMessage: string) of object;
+  TOnInlayHintResolveEvent = procedure(Sender: TObject; const value: TLSPInlayHint; const errorCode: Integer; const errorMessage: string) of object;
+  TOnInlayHintRefreshEvent = procedure(Sender: TObject; const errorCode: Integer; const errorMessage: string) of object;
+  TOnInlineValueEvent = procedure(Sender: TObject; const values: TLSPInlineValueResult; const errorCode: Integer; const errorMessage: string) of object;
+  TOnInlineValueRefreshEvent = procedure(Sender: TObject; const errorCode: Integer; const errorMessage: string) of object;
+  TOnUnegisterCapabilityEvent = procedure(Sender: TObject; const values: TLSPUnregistrations; var errorCode: Integer; var errorMessage: string) of object;
   TOnWillSaveWaitUntilTextDocumentResponse = procedure(Sender: TObject; const values: TArray<TLSPTextEdit>) of object;
   TOnWorkDoneProgressEvent = procedure(Sender: TObject; const token: string; var errorCode: Integer; var errorMessage: string) of object;
   TOnWorkspaceApplyEditRequestEvent = procedure(Sender: TObject; const value: TLSPApplyWorkspaceEditParams; var responseValue: TLSPApplyWorkspaceEditResponse; var errorCode: Integer; var errorMessage: string) of object;
+  TOnWorkspaceDiagnosticEvent = procedure(Sender: TObject; const items: TArray<TLSPWorkspaceDocumentDiagnosticReport>; const errorCode: Integer; const errorMessage: string; const retriggerRequest: Boolean) of object;
+  TOnWorkspaceDiagnosticRefreshEvent = procedure(Sender: TObject; const errorCode: Integer; const errorMessage: string) of object;
   TOnWorkspaceFoldersRequestEvent = procedure(Sender: TObject; var values: TLSPWorkspaceFolders; var bSingleFileOpen: Boolean; var bNoWorkspaceFolders: Boolean; var errorCode: Integer; var errorMessage: string) of object;
   TOnWorkspaceSymbolRequestEvent = procedure(Sender: TObject; const symbols: TLSPSymbolInformations) of object;
   TOnWorkspaceWillCreateFilesResponseEvent = procedure(Sender: TObject; const value: TLSPWorkspaceEdit) of object;
@@ -104,6 +113,8 @@ type
     FExitTimer: TTimer;
     FFileLogList: TStringList;
     FFileLog: TextFile;
+    FFOnTypeHierarchySupertypes: TOnPrepareTypeHierarchyEvent;
+    FFOnWorkspaceDiagnostic: TOnWorkspaceDiagnosticEvent;
     FId: string;
     FInitialized: Boolean;
     FInitializeResultObject: TLSPInitializeResultParams;
@@ -124,6 +135,7 @@ type
     FOnCompletionItemResolve: TOnCompletionItemResolveEvent;
     FOnConfiguration: TOnConfigurationRequestEvent;
     FOnDocumentColor: TOnDocumentColorEvent;
+    FOnDocumentDiagnostic: TOnDocumentDiagnosticEvent;
     FOnDocumentFormatting: TOnDocumentFormattingEvent;
     FOnDocumentHighlight: TOnDocumentHighlightEvent;
     FOnDocumentLink: TOnDocumentLinkEvent;
@@ -138,7 +150,7 @@ type
     FOnLogMessage: TOnShowMessageEvent;
     FOnLogTrace: TOnLogTraceEvent;
     FOnProgress: TOnProgressEvent;
-    //FOnRegisterCapability: TOnRegisterCapabilityEvent;
+    FOnRegisterCapability: TOnRegisterCapabilityEvent;
     FOnShowDocument: TOnShowDocumentRequestEvent;
     FOnShowMessage: TOnShowMessageEvent;
     FOnShowMessageRequest: TOnShowMessageRequestEvent;
@@ -148,7 +160,7 @@ type
     FServerVersion: string;
     FOnShutdown: TOnShutdownEvent;
     FOnTelemetryEvent: TOnTelemetryEvent;
-    //FOnUnregisterCapability: TOnUnegisterCapabilityEvent;
+    FOnUnregisterCapability: TOnUnegisterCapabilityEvent;
     FOnWorkDoneProgress: TOnWorkDoneProgressEvent;
     FOnWorkspaceFolders: TOnWorkspaceFoldersRequestEvent;
     FOnWorkspaceSymbol: TOnWorkspaceSymbolRequestEvent;
@@ -161,10 +173,16 @@ type
     FOnGotoTypeDefinition: TOnGotoTypeDefinitionEvent;
     FOnHover: TOnHoverEvent;
     FOnGotoImplementation: TOnGotoImplementationEvent;
+    FOnInlayHint: TOnInlayHintEvent;
+    FOnInlayHintRefresh: TOnInlayHintRefreshEvent;
+    FOnInlayHintResolve: TOnInlayHintResolveEvent;
+    FOnInlineValue: TOnInlineValueEvent;
+    FOnInlineValueRefresh: TOnInlineValueRefreshEvent;
     FOnLinkedEditingRange: TOnLinkedEditingRangeEvent;
     FOnMoniker: TOnMonikerEvent;
     FOnPrepareCallHierarchy: TOnPrepareCallHierarchyEvent;
     FOnPrepareRename: TOnPrepareRenameEvent;
+    FOnPrepareTypeHierarchy: TOnPrepareTypeHierarchyEvent;
     FOnPublishDiagnostics: TOnPublishDiagnostics;
     FOnRename: TOnRenameEvent;
     FOnSelectionRange: TOnSelectionRangeEvent;
@@ -173,8 +191,10 @@ type
     FOnSemanticTokensRange: TOnSemanticTokensRangeEvent;
     FOnSemanticTokensRefresh: TOnSemanticTokensRefreshEvent;
     FOnSignatureHelp: TOnSignatureHelpEvent;
+    FOnTypeHierarchySubtypes: TOnPrepareTypeHierarchyEvent;
     FOnWillSaveWaitUntilTextDocument: TOnWillSaveWaitUntilTextDocumentResponse;
     FOnWorkspaceApplyEdit: TOnWorkspaceApplyEditRequestEvent;
+    FOnWorkspaceDiagnosticRefresh: TOnWorkspaceDiagnosticRefreshEvent;
     FOnWorkspaceWillCreateFiles: TOnWorkspaceWillCreateFilesResponseEvent;
     FOnWorkspaceWillDeleteFiles: TOnWorkspaceWillDeleteFilesResponseEvent;
     FOnWorkspaceWillRenameFiles: TOnWorkspaceWillRenameFilesResponseEvent;
@@ -190,13 +210,9 @@ type
     procedure OnCloseTimer(Sender: TObject);
     procedure OnExitServer(Sender: TObject; exitcode: Integer);
     procedure OnExitTimer(Sender: TObject);
-    procedure OnRegisterCapability(Sender: TObject; const values: TLSPRegistrations; var errorCode: Integer;
-        var errorMessage: string);
     procedure OnResponseTimer(Sender: TObject);
     procedure OnServerThreadTerminate(Sender: TObject);
-    procedure OnUnregisterCapability(Sender: TObject; const values: TLSPUnregistrations; var errorCode:
-        Integer; var errorMessage: string);
-    procedure RegisterCapability(const value: TLSPRegistration);
+    procedure RegisterCapability(const item: TLSPRegistration);
     procedure SaveToLogFile(const w: string);
     procedure SendResponse(const id: Integer; const method: string = ''; const params: TLSPBaseParams = nil; const errors:
         TLSPBaseParams = nil; resultType: TLSPResultType = lsprObject; resultString: string = '');
@@ -206,13 +222,13 @@ type
     procedure SetExitTimeout(const Value: Integer);
     procedure SetResponseTimeout(const Value: Integer);
     procedure SetStartTimeout(const Value: Integer);
-    procedure UnRegisterCapability(const value: TLSPUnregistration);
+    procedure UnRegisterCapability(const item: TLSPUnregistration);
   public
     constructor Create(Owner: TComponent); override;
     destructor Destroy; override;
     procedure CloseServer;
     procedure ExitServer(const bNoExitEvent: Boolean = False);
-    function FindDynamicOption(const sm, ext: string): TLSPTextDocumentRegistrationOptions;
+    function FindDynamicCapability(const method: string): TLSPTextDocumentRegistrationOptions;
     function GetErrorCodeAsString(typ: Integer): string;
     function GetIdFromPartialResultToken(const LStr: string): Integer;
     procedure OnReadFromServer(Sender: TObject; const AJson: ISuperObject; const APlainText: string);
@@ -222,9 +238,10 @@ type
     procedure RunServer(const ACommandline, ADir: String; const AHost: string = ''; const APort: Integer = 0; const
         AUseSocket: Boolean = False);
     function GetRunTimeInSeconds: Double;
-    function GetSyncKind(const ext: string): Integer;
+    function GetSyncKind: Integer;
     function IncludeText(const lspKind: TLSPKind; const filename: string; const includeDefault: Boolean): Boolean;
-    function IsRequestSupported(const lspKind: TLSPKind): Boolean;
+    function IsRequestSupported(const lspKind: TLSPKind; const ext: string = '*'): Boolean;
+    function LSPKindFromMethod(const s: string): TLSPKind;
     procedure SendCancelRequest(const lspKind: TLSPKind);
     procedure SendCancelWorkDoneProgress(const token: string);
     procedure SendExecuteCommandRequest(const command: string; const argumentsJSON:
@@ -240,6 +257,22 @@ type
     property ServerCapabilities: TLSPServerCapabilities read FServerCapabilities write FServerCapabilities;
     property ServerName: string read FServerName write FServerName;
     property ServerVersion: string read FServerVersion write FServerVersion;
+    property FOnTypeHierarchySupertypes: TOnPrepareTypeHierarchyEvent read FFOnTypeHierarchySupertypes write
+        FFOnTypeHierarchySupertypes;
+    property FOnWorkspaceDiagnostic: TOnWorkspaceDiagnosticEvent read FFOnWorkspaceDiagnostic write FFOnWorkspaceDiagnostic;
+    property OnDocumentDiagnostic: TOnDocumentDiagnosticEvent read FOnDocumentDiagnostic write FOnDocumentDiagnostic;
+    property OnInlayHint: TOnInlayHintEvent read FOnInlayHint write FOnInlayHint;
+    property OnInlayHintRefresh: TOnInlayHintRefreshEvent read FOnInlayHintRefresh write FOnInlayHintRefresh;
+    property OnInlayHintResolve: TOnInlayHintResolveEvent read FOnInlayHintResolve write FOnInlayHintResolve;
+    property OnInlineValue: TOnInlineValueEvent read FOnInlineValue write FOnInlineValue;
+    property OnInlineValueRefresh: TOnInlineValueRefreshEvent read FOnInlineValueRefresh write FOnInlineValueRefresh;
+    property OnPrepareTypeHierarchy: TOnPrepareTypeHierarchyEvent read FOnPrepareTypeHierarchy write
+        FOnPrepareTypeHierarchy;
+    property OnRegisterCapability: TOnRegisterCapabilityEvent read FOnRegisterCapability write FOnRegisterCapability;
+    property OnTypeHierarchySubtypes: TOnPrepareTypeHierarchyEvent read FOnTypeHierarchySubtypes write
+        FOnTypeHierarchySubtypes;
+    property OnWorkspaceDiagnosticRefresh: TOnWorkspaceDiagnosticRefreshEvent read FOnWorkspaceDiagnosticRefresh write
+        FOnWorkspaceDiagnosticRefresh;
   published
     property ClientName: string read FClientName write FClientName;
     property ClientVersion: string read FClientVersion write FClientVersion;
@@ -301,8 +334,6 @@ type
     property OnProgress: TOnProgressEvent read FOnProgress write FOnProgress;
     property OnPublishDiagnostics: TOnPublishDiagnostics read FOnPublishDiagnostics
         write FOnPublishDiagnostics;
-//    property OnRegisterCapability: TOnRegisterCapabilityEvent read
-//        FOnRegisterCapability write FOnRegisterCapability;
     property OnRename: TOnRenameEvent read FOnRename write FOnRename;
     property OnSelectionRange: TOnSelectionRangeEvent read FOnSelectionRange write FOnSelectionRange;
     property OnSemanticTokensFull: TOnSemanticTokensFullEvent read FOnSemanticTokensFull write FOnSemanticTokensFull;
@@ -319,8 +350,8 @@ type
     property OnSignatureHelp: TOnSignatureHelpEvent read FOnSignatureHelp write
         FOnSignatureHelp;
     property OnTelemetryEvent: TOnTelemetryEvent read FOnTelemetryEvent write FOnTelemetryEvent;
-//    property OnUnregisterCapability: TOnUnegisterCapabilityEvent read
-//        FOnUnregisterCapability write FOnUnregisterCapability;
+    property OnUnregisterCapability: TOnUnegisterCapabilityEvent read
+        FOnUnregisterCapability write FOnUnregisterCapability;
     property OnWillSaveWaitUntilTextDocument:
         TOnWillSaveWaitUntilTextDocumentResponse read
         FOnWillSaveWaitUntilTextDocument write FOnWillSaveWaitUntilTextDocument;
@@ -422,27 +453,16 @@ begin
   inherited;
 end;
 
-function TLSPClient.FindDynamicOption(const sm, ext: string): TLSPTextDocumentRegistrationOptions;
+function TLSPClient.FindDynamicCapability(const method: string): TLSPTextDocumentRegistrationOptions;
 var
-  i,j: Integer;
-  options: TLSPTextDocumentRegistrationOptions;
-  filter: TLSPDocumentFilter;
+  i: Integer;
 begin
   Result := nil;
   for i := 0 to FDynamicCapabilities.Count - 1 do
   begin
-    if FDynamicCapabilities.ValueFromIndex[i] = sm then
+    if FDynamicCapabilities.ValueFromIndex[i] = method then
     begin
-      options := TLSPTextDocumentRegistrationOptions(FDynamicCapabilities.Objects[i]);
-      for j := 0 to Length(options.documentSelector) - 1 do
-      begin
-        filter := options.documentSelector[j];
-        if Pos(ext,filter.pattern) > 0 then
-        begin
-          Result := options;
-          Exit;
-        end;
-      end;
+      Result := TLSPTextDocumentRegistrationOptions(FDynamicCapabilities.Objects[i]);
     end;
   end;
 end;
@@ -525,11 +545,12 @@ end;
 function TLSPClient.ProcessServerMessage(const LJson: ISuperObject): Boolean;
 var
   id: Integer;
-  LKind: Integer;
+  i,LKind: Integer;
   method: string;
   bRequest: Boolean;
   errorCode: Integer;
   errorMessage: string;
+  retriggerRequest: Boolean;
   params,rparams: TLSPBaseParams;
   LInt,LId: Integer;
   ws,LStr: string;
@@ -732,6 +753,11 @@ begin
           if not Assigned(params) or (Length(TLSPMonikerResult(params).monikers) = 0) then
             UnRegisterPartialResultToken(LStr);
         end;
+        lspInlayHint:
+        begin
+          if not Assigned(params) or (Length(TLSPInlayHintResult(params).inlayHints) = 0) then
+            UnRegisterPartialResultToken(LStr);
+        end;
         lspSelectionRange:
         begin
           if TLSPSelectionRangeResponse(params).selRanges.Count = 0 then
@@ -793,17 +819,15 @@ begin
       Result := True;
     end;
 
-    // Client/registerCapability request sent from the server to register for a new capability on the client side.
+    // Client/RegisterCapability request sent from the server to register for a new capability on the client side.
     lspClientRegisterCapabilities:
     begin
       errorCode := 0;
       LRegistrations := JsonRegisterCapabilitiesToRegistrations(LJson);
 
-      OnRegisterCapability(Self, LRegistrations, errorCode, errorMessage);
-
       // OnRegisterCapabilities event
-//      if Assigned(FOnRegisterCapability) then
-//        FOnRegisterCapability(Self, LRegistrations, errorCode, errorMessage);
+      if Assigned(FOnRegisterCapability) then
+        FOnRegisterCapability(Self, LRegistrations, errorCode, errorMessage);
 
       // An error occurred. Send the error message back to the server.
       if errorCode <> 0 then
@@ -812,6 +836,13 @@ begin
         params := TLSPResponseError.Create;
         TLSPResponseError(params).code := errorCode;
         TLSPResponseError(params).msg := errorMessage;
+      end;
+
+      // Register dynamic options
+      if (errorCode = 0) then
+      begin
+        for i := 0 to Length(LRegistrations) - 1 do
+          RegisterCapability(LRegistrations[i]);
       end;
 
       // Send responce to the server if the server expect a response (LId > -1)
@@ -1124,6 +1155,117 @@ begin
       Result := True;
     end;
 
+    // An inlayHint request was sent to the server. An event is triggered when the server responds.
+    lspInlayHint:
+    begin
+      params := JsonInlayHintResponseToObject(LJson, errorCode, errorMessage);
+
+      // OnInlayHint event
+      if Assigned(FOnInlayHint) then
+        FOnInlayHint(Self, TLSPInlayHintResult(params), errorCode, errorMessage);
+
+      Result := True;
+    end;
+
+    // An inlayHint resolve request was sent to the server. An event is triggered when the server responds.
+    lspInlayHintResolve:
+    begin
+      params := JsonInlayHintResolveToObject(LJson, errorCode, errorMessage);
+
+      // OnInlayHintResolve event
+      if Assigned(FOnInlayHintResolve) then
+        FOnInlayHintResolve(Self, TLSPInlayHint(params), errorCode, errorMessage);
+
+      Result := True;
+    end;
+
+    // An inlayHint refresh was sent from the server.
+    lspInlayHintRefresh:
+    begin
+      JsonInlayHintRefreshToObject(LJson, errorCode, errorMessage);
+
+      // OnInlayHintRefresh event
+      if Assigned(FOnInlayHintRefresh) then
+        FOnInlayHintRefresh(Self, errorCode, errorMessage);
+
+      Result := True;
+    end;
+
+    // An inlineValue request was sent to the server. An event is triggered when the server responds.
+    lspInlineValue:
+    begin
+      params := JsonInlineValueResponseToObject(LJson, errorCode, errorMessage);
+
+      // OnInlineValue event
+      if Assigned(FOnInlineValue) then
+        FOnInlineValue(Self, TLSPInlineValueResult(params), errorCode, errorMessage);
+
+      Result := True;
+    end;
+
+    // An inlineValue refresh was sent from the server.
+    lspInlineValueRefresh:
+    begin
+      JsonInlineValueRefreshToObject(LJson, errorCode, errorMessage);
+
+      // OnInlineValueRefresh event
+      if Assigned(FOnInlineValueRefresh) then
+        FOnInlineValueRefresh(Self, errorCode, errorMessage);
+
+      Result := True;
+    end;
+
+    // Document diagnostic request was sent to the server. An event is triggered when the server responds.
+    lspDocumentDiagnostic:
+    begin
+      params := JsonDocumentDiagnosticReportToObject(LJson, errorCode, errorMessage, retriggerRequest);
+
+      // OnDocumentDiagnostic event
+      if Assigned(FOnDocumentDiagnostic) then
+        FOnDocumentDiagnostic(Self,
+                              TLSPDocumentDiagnosticReport(params).kind,
+                              TLSPDocumentDiagnosticReport(params).resultId,
+                              TLSPDocumentDiagnosticReport(params).items,
+                              errorCode, errorMessage, retriggerRequest);
+    end;
+
+    // Workspace diagnostic request was sent to the server. An event is triggered when the server responds.
+    lspWorkspaceDiagnostic:
+    begin
+      params := JsonWorkspaceDiagnosticReportToObject(LJson, errorCode, errorMessage, retriggerRequest);
+
+      // OnWorkspaceDiagnostic event
+      if Assigned(FOnWorkspaceDiagnostic) then
+        FOnWorkspaceDiagnostic(Self,
+                              TLSPWorkspaceDiagnosticReport(params).items,
+                              errorCode, errorMessage, retriggerRequest);
+    end;
+
+    // A workspace diagnostic refresh request was sent from the server.
+    lspWorkspaceDiagnosticRefresh:
+    begin
+      JsonWorkspaceDiagnosticRefreshToObject(LJson, errorCode, errorMessage);
+
+      // OnWorkspaceDiagnosticRefresh event
+      if Assigned(FOnWorkspaceDiagnosticRefresh) then
+        FOnWorkspaceDiagnosticRefresh(Self, errorCode, errorMessage);
+
+      // An error occurred. Send the error message back to the server.
+      if errorCode <> 0 then
+      begin
+        LId := id;
+        params := TLSPResponseError.Create;
+        TLSPResponseError(params).code := errorCode;
+        TLSPResponseError(params).msg := errorMessage;
+      end;
+
+      // Send responce to the server if the server expect a response (LId > -1)
+      if LId > -1 then
+        SendResponse(id,LSPIdStrings[LKind], nil, params, lsprVoid);
+
+      Result := True;
+    end;
+
     // Publish diagnostics notification sent from the server.
     lspPublishDiagnostics:
     begin
@@ -1145,6 +1287,42 @@ begin
       // OnPrepareCallHierarchy event
       if Assigned(FOnPrepareCallHierarchy) then
         FOnPrepareCallHierarchy(Self, TLSPPrepareCallHierarchyResponse(params), errorCode, errorMessage);
+
+      Result := True;
+    end;
+
+    // A prepare type hierarchy request was sent to the server. An event is triggered when the server responds.
+    lspPrepareTypeHierarchy:
+    begin
+      params := JsonPrepareTypeHierarchyResponseToObject(LJson, errorCode, errorMessage);
+
+      // OnPrepareTypeHierarchy event
+      if Assigned(FOnPrepareTypeHierarchy) then
+        FOnPrepareTypeHierarchy(Self, TLSPPrepareTypeHierarchyResponse(params), errorCode, errorMessage);
+
+      Result := True;
+    end;
+
+    // A type hierarchy super types request was sent to the server. An event is triggered when the server responds.
+    lspTypeHierarchySupertypes:
+    begin
+      params := JsonTypeHierarchySupertypesResponseToObject(LJson, errorCode, errorMessage);
+
+      // OnTypeHierarchySupertypes event
+      if Assigned(FOnTypeHierarchySupertypes) then
+        FOnTypeHierarchySupertypes(Self, TLSPPrepareTypeHierarchyResponse(params), errorCode, errorMessage);
+
+      Result := True;
+    end;
+
+    // A call hierarchy sub types request was sent to the server. An event is triggered when the server responds.
+    lspTypeHierarchySubtypes:
+    begin
+      params := JsonTypeHierarchySupertypesResponseToObject(LJson, errorCode, errorMessage);
+
+      // OnTypeHierarchySubtypes event
+      if Assigned(FOnTypeHierarchySubtypes) then
+        FOnTypeHierarchySubtypes(Self, TLSPPrepareTypeHierarchyResponse(params), errorCode, errorMessage);
 
       Result := True;
     end;
@@ -1348,11 +1526,9 @@ begin
       errorCode := 0;
       LUnregistrations := JsonUnregisterCapabilitiesToUnregistrations(LJson);
 
-      OnUnregisterCapability(Self, LUnregistrations, errorCode, errorMessage);
-
       // OnRegisterCapabilities event
-//      if Assigned(FOnUnregisterCapability) then
-//        FOnUnregisterCapability(Self, LUnregistrations, errorCode, errorMessage);
+      if Assigned(FOnUnregisterCapability) then
+        FOnUnregisterCapability(Self, LUnregistrations, errorCode, errorMessage);
 
       // An error occurred. Send the error message back to the server.
       if errorCode <> 0 then
@@ -1361,6 +1537,13 @@ begin
         params := TLSPResponseError.Create;
         TLSPResponseError(params).code := errorCode;
         TLSPResponseError(params).msg := errorMessage;
+      end;
+
+      // UnRegister dynamic options
+      if (errorCode = 0) then
+      begin
+        for i := 0 to Length(LRegistrations) - 1 do
+          UnRegisterCapability(LUnRegistrations[i]);
       end;
 
       // Send responce to the server if the server expect a response (LId > -1)
@@ -1664,17 +1847,6 @@ begin
   end;
 end;
 
-procedure TLSPClient.OnRegisterCapability(Sender: TObject; const values: TLSPRegistrations; var errorCode: Integer;
-  var errorMessage: string);
-var
-  i: Integer;
-begin
-  if Length(values) = 0 then Exit;
-
-  for i := 0 to Length(values) - 1 do
-    RegisterCapability(values[i]);
-end;
-
 procedure TLSPClient.OnServerThreadTerminate(Sender: TObject);
 begin
   FServerThread := nil;
@@ -1707,17 +1879,6 @@ begin
   end;
 end;
 
-procedure TLSPClient.OnUnregisterCapability(Sender: TObject; const values: TLSPUnregistrations; var errorCode: Integer;
-  var errorMessage: string);
-var
-  i: Integer;
-begin
-  if Length(values) = 0 then Exit;
-
-  for i := 0 to Length(values) - 1 do
-    UnRegisterCapability(values[i]);
-end;
-
 procedure TLSPClient.OnWriteToServer(Sender: TObject; var s: RawByteString);
 begin
   // Send JSON string to server
@@ -1727,14 +1888,14 @@ begin
     SaveToLogFile('Write to server:' + #13#10 + string(s));
 end;
 
-procedure TLSPClient.RegisterCapability(const value: TLSPRegistration);
+procedure TLSPClient.RegisterCapability(const item: TLSPRegistration);
 var
   id,sm: string;
   options: TLSPTextDocumentRegistrationOptions;
 begin
-  id := value.id;
-  sm := value.method;
-  options := value.registerOptions;
+  id := item.id;
+  sm := item.method;
+  options := item.registerOptions;
   FDynamicCapabilities.AddObject(id + '=' + sm, options);
 end;
 
@@ -1770,7 +1931,7 @@ begin
   Result := elapsed.TotalSeconds;
 end;
 
-function TLSPClient.GetSyncKind(const ext: string): Integer;
+function TLSPClient.GetSyncKind: Integer;
 var
   sm: string;
   options: TLSPTextDocumentRegistrationOptions;
@@ -1783,19 +1944,10 @@ begin
     Result := ServerCapabilities.textDocumentSync.change;
     Exit;
   end;
-
-  // Get dynamic options - if any
-  sm :=  LSPIdStrings[Ord(lspDidChangeTextDocument)];
-  options := FindDynamicOption(sm, ext);
-  if Assigned(options) then
-    Result := options.syncKind;
 end;
 
 function TLSPClient.IncludeText(const lspKind: TLSPKind; const filename: string; const includeDefault: Boolean):
     Boolean;
-var
-  ext,sm: string;
-  options: TLSPTextDocumentRegistrationOptions;
 begin
   Result := includeDefault;
   case lspKind of
@@ -1808,16 +1960,11 @@ begin
       end;
     end;
   end;
-
-  // Get dynamic options - if any
-  ext := ExtractFileExt(filename);
-  sm :=  LSPIdStrings[Ord(lspKind)];
-  options := FindDynamicOption(sm, ext);
-  if Assigned(options) then
-    Result := options.includeText;
 end;
 
-function TLSPClient.IsRequestSupported(const lspKind: TLSPKind): Boolean;
+function TLSPClient.IsRequestSupported(const lspKind: TLSPKind; const ext: string = '*'): Boolean;
+var
+  LNotebookSelector: TLSPNoteBookSelector;
 begin
   Result := False;
   if not Assigned(ServerCapabilities) then Exit;
@@ -1840,6 +1987,21 @@ begin
       Result := Assigned(ServerCapabilities) and Assigned(ServerCapabilities.textDocumentSync) and
                 Assigned(ServerCapabilities.textDocumentSync.save);
     end;
+    lspDidOpenNotebookDocument,
+    lspDidCloseNotebookDocument,
+    lspDidChangeNotebookDocument,
+    lspDidSaveNotebookDocument:
+    begin
+      Result := Assigned(ServerCapabilities) and Assigned(ServerCapabilities.notebookDocumentSync);
+      if Result and Assigned(ServerCapabilities) and Assigned(ServerCapabilities.notebookDocumentSync) then
+      begin
+        if Length(ServerCapabilities.notebookDocumentSync.notebookSelector) > 0 then
+        begin
+          LNotebookSelector := ServerCapabilities.notebookDocumentSync.notebookSelector[0];
+          Result := (LNotebookSelector.notebook <> '') or Assigned(LNotebookSelector.notebookFilter);
+        end;
+      end;
+    end;
     lspWorkspaceSymbol: begin
       Result := Assigned(ServerCapabilities.workspaceSymbolProvider);
     end;
@@ -1854,6 +2016,9 @@ begin
     end;
     lspWorkspaceWillDeleteFiles: begin
       Result := Assigned(ServerCapabilities.workspace.fileOperations) and Assigned(ServerCapabilities.workspace.fileOperations.willDelete);
+    end;
+    lspWillSaveTextDocument: begin
+      Result := Assigned(ServerCapabilities.textDocumentSync) and ServerCapabilities.textDocumentSync.willSave;
     end;
     lspWillSaveWaitUntilTextDocument: begin
       Result := Assigned(ServerCapabilities.textDocumentSync) and ServerCapabilities.textDocumentSync.willSaveWaitUntil;
@@ -1921,6 +2086,12 @@ begin
     lspDocumentOnTypeFormatting: begin
       Result := Assigned(ServerCapabilities.documentOnTypeFormattingProvider);
     end;
+    lspDocumentDiagnostic: begin
+      Result := Assigned(ServerCapabilities.diagnosticProvider);
+    end;
+    lspWorkspaceDiagnostic: begin
+      Result := Assigned(ServerCapabilities.diagnosticProvider) and ServerCapabilities.diagnosticProvider.workspaceDiagnostics;
+    end;
     lspRename: begin
       Result := Assigned(ServerCapabilities.renameProvider);
     end;
@@ -1933,14 +2104,15 @@ begin
     lspSelectionRange: begin
       Result := Assigned(ServerCapabilities.selectionRangeProvider);
     end;
-    lspPrepareCallHierarchy: begin
-      Result := Assigned(ServerCapabilities.callHierarchyProvider);
-    end;
-    lspCallHierarchyIncommingCalls: begin
-      Result := Assigned(ServerCapabilities.callHierarchyProvider);
-    end;
+    lspPrepareCallHierarchy,
+    lspCallHierarchyIncommingCalls,
     lspCallHierarchyOutgoingCalls: begin
       Result := Assigned(ServerCapabilities.callHierarchyProvider);
+    end;
+    lspPrepareTypeHierarchy,
+    lspTypeHierarchySupertypes,
+    lspTypeHierarchySubtypes: begin
+      Result := Assigned(ServerCapabilities.typeHierarchyProvider);
     end;
     lspSemanticTokensFull: begin
       Result := Assigned(ServerCapabilities.semanticTokensProvider) and ServerCapabilities.semanticTokensProvider.full;
@@ -1961,7 +2133,23 @@ begin
     lspMoniker: begin
       Result := Assigned(ServerCapabilities.monikerProvider);
     end;
+    lspInlayHint,
+    lspInlayHintRefresh:
+    begin
+      Result := Assigned(ServerCapabilities.inlayHintProvider);
+    end;
+    lspInlayHintResolve: begin
+      Result := Assigned(ServerCapabilities.inlayHintProvider) and ServerCapabilities.inlayHintProvider.resolveProvider;
+    end;
+    lspInlineValue: begin
+      Result := Assigned(ServerCapabilities.inlineValueProvider);
+    end;
   end;
+end;
+
+function TLSPClient.LSPKindFromMethod(const s: string): TLSPKind;
+begin
+  Result := LSPKindFromMethod(s);
 end;
 
 procedure TLSPClient.OnCloseTimer(Sender: TObject);
@@ -2305,11 +2493,11 @@ begin
   FStartTimer.Interval := Value;
 end;
 
-procedure TLSPClient.UnRegisterCapability(const value: TLSPUnregistration);
+procedure TLSPClient.UnRegisterCapability(const item: TLSPUnregistration);
 var
   n: Integer;
 begin
-  n := FDynamicCapabilities.IndexOfName(value.id);
+  n := FDynamicCapabilities.IndexOfName(item.id);
   if n >= 0 then
     FDynamicCapabilities.Delete(n);
 end;

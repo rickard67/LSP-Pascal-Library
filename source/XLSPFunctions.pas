@@ -47,6 +47,8 @@ function JsonCompletionItemResolveToObject(const LJson: ISuperObject; var ErrorC
 function JsonConfigurationParamsToObjects(const LJson: ISuperObject): TLSPConfigurationParams;
 function JsonDocumentColorValuesToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string; const
     path: string = ''): TLSPColorInformationValues;
+function JsonDocumentDiagnosticReportToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage:
+    string; var retriggerRequest: Boolean): TLSPRelatedDocumentDiagnosticReport;
 function JsonDocumentFormattingResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPTextEditValues;
 function JsonDocumentHighlightResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string;
     const path: string = ''): TLSPDocumentHighlightResponse;
@@ -65,6 +67,11 @@ function JsonGotoResponseToObject(const LJson: ISuperObject; var ErrorCode: Inte
 function JsonHoverResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPHover;
 function JsonInitializeResultToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string):
     TLSPInitializeResultParams;
+procedure JsonInlayHintRefreshToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string);
+function JsonInlayHintResolveToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPInlayHint;
+function JsonInlayHintResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPInlayHintResult;
+function JsonInlineValueResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPInlineValueResult;
+procedure JsonInlineValueRefreshToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string);
 function JsonReadInitializeToClientCapabilities(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string):
     TLSPClientCapabilities;
 function JsonLinkedEditingRangesToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPLinkedEditingRanges;
@@ -73,6 +80,8 @@ function JsonMonikerToObject(const LJson: ISuperObject; var ErrorCode: Integer; 
     const path: string = ''): TLSPMonikerResult;
 function JsonPrepareCallHierarchyResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage:
     string): TLSPPrepareCallHierarchyResponse;
+function JsonPrepareTypeHierarchyResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage:
+    string): TLSPPrepareTypeHierarchyResponse;
 function JsonProgressToken(const LJson: ISuperObject): string;
 function JsonProgressParamsToObject(const kind: Integer; const LJson: ISuperObject): TLSPBaseParams;
 function JsonPublishDiagnosticsToObject(const LJson: ISuperObject): TLSPPublishDiagnosticsParams;
@@ -91,11 +100,16 @@ procedure JsonShowMessageParams(const LJson: ISuperObject; var ntype: Integer; v
 procedure JsonShowMessageRequestParams(const LJson: ISuperObject; var ntype: Integer; var msg: string; var arr: TArray<string>);
 function JsonShutdownResult(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): Boolean;
 function JsonSignatureHelpResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPSignatureHelp;
+function JsonTypeHierarchySupertypesResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var
+    ErrorMessage: string; const path: string = ''): TLSPPrepareTypeHierarchyResponse;
 function JsonUnregisterCapabilitiesToUnregistrations(const LJson: ISuperObject): TArray<TLSPUnregistration>;
 function JsonWillSaveWaitUntilResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TArray<TLSPTextEdit>;
 procedure JsonWorkDoneProgressRequestParams(const LJson: ISuperObject; var token: string);
 function JsonWorkspaceApplyEditParamsToObject(const LJson: ISuperObject; key: string; var ErrorCode: Integer; var ErrorMessage: string):
     TLSPApplyWorkspaceEditParams;
+function JsonWorkspaceDiagnosticReportToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage:
+    string; var retriggerRequest: Boolean): TLSPWorkspaceDiagnosticReport;
+procedure JsonWorkspaceDiagnosticRefreshToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string);
 function JsonWorkspaceSymbolResultToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string;
     const path: string = ''): TLSPSymbolInformations;
 function FilePathToUri(const APath: string): string;
@@ -258,6 +272,32 @@ begin
   Result := LJson.AsJSON;
 end;
 
+function LSPOpenNotebookDocumentParamsToJSON(const item: TLSPDidOpenNotebookDocumentParams): string;
+var
+  LJson: ISuperObject;
+begin
+  Result := item.AsJSON;
+  if not Assigned(item.notebookDocument) then Exit;
+
+  LJson := TSuperObject.Create(Result);
+  LJson.Raw['notebookDocument.metadata'] := item.notebookDocument.metadata;
+
+  Result := LJson.AsJSON;
+end;
+
+function LSPChangeNotebookDocumentParamsToJSON(const item: TLSPDidChangeNotebookDocumentParams): string;
+var
+  LJson: ISuperObject;
+begin
+  Result := item.AsJSON;
+  if not Assigned(item.change) then Exit;
+
+  LJson := TSuperObject.Create(Result);
+  LJson.Raw['change.metadata'] := item.change.metadata;
+
+  Result := LJson.AsJSON;
+end;
+
 function LSPCompletionResolveParamsToJSON(const item: TLSPCompletionItem): string;
 var
   LJson: ISuperObject;
@@ -321,6 +361,18 @@ begin
     end;
     Result := LJson.AsJSON;
   end;
+end;
+
+function LSPInlayHintResolveParamsToJSON(const item: TLSPInlayHint): string;
+var
+  LJson: ISuperObject;
+begin
+  Result := item.AsJSON;
+
+  LJson := TSuperObject.Create(Result);
+  LJson.Raw['data'] := item.data;
+
+  Result := LJson.AsJSON;
 end;
 
 function JsonCallHierarchyIncommingResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var
@@ -1257,8 +1309,11 @@ end;
 function JsonCompletionResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string):
     TLSPCompletionList;
 var
-  LArray: ISuperArray;
+  LArray,LArray2: ISuperArray;
+  LObject: ISuperObject;
+  LRange: ISuperObject;
   s: string;
+  i: Integer;
 
   procedure ProcessArray(var items: TObjectList<TLSPCompletionItem>; const arr: ISuperArray);
   var
@@ -1280,28 +1335,58 @@ var
       LArrObj := LMem.AsObject;
       item := TLSPCompletionItem.Create;
 
+      // label: string
       item.slabel := LArrObj.S['label'];
+
+      // labelDetails?: CompletionItemLabelDetails;
+      if LArrObj.Expression['labelDetails'].DataType = dtObject then
+      begin
+        item.labelDetails.detail := LArrObj.O['labelDetails'].S['detail'];
+        item.labelDetails.description := LArrObj.O['labelDetails'].S['description'];
+      end;
+
+      // kind?: CompletionItemKind;
       item.kind := LArrObj.I['kind'];
+
+      // detail?: string;
       item.detail := LArrObj.S['detail'];
+
+      // documentation?: string | MarkupContent;
       if LArrObj.Expression['documentation'].DataType = dtObject then
       begin
+        // MarkupContent
         item.documentation.kind := LArrObj.O['documentation'].S['kind'];
         item.documentation.value := LArrObj.O['documentation'].S['value'];
       end
       else if LArrObj.Expression['documentation'].DataType = dtString then
       begin
+        // string
         item.documentation.kind := 'plaintext';
         item.documentation.value := LArrObj.S['documentation'];
       end;
+
+      // deprecated?: boolean;
       item.deprecated := LArrObj.B['deprecated'];
+
+      // preselect?: boolean;
       item.preselect := LArrObj.B['preselect'];
+
+      // sortText?: string;
       item.sortText := LArrObj.S['sortText'];
+
+      // filterText?: string;
       item.filterText := LArrObj.S['filterText'];
+
+      // insertText?: string;
       item.insertText := LArrObj.S['insertText'];
+
+      // insertTextFormat?: InsertTextFormat;
       item.insertTextFormat := LArrObj.I['insertTextFormat'];
+
+      // insertTextMode?: InsertTextMode;
       item.insertTextMode := LArrObj.I['insertTextMode'];
 
-      // TextEdit object
+      // textEdit?: TextEdit | InsertReplaceEdit;
       if LArrObj.Expression['textEdit'].DataType = dtObject then
       begin
         if LArrObj.O['textEdit'].Expression['replace'].DataType = dtObject then
@@ -1313,6 +1398,8 @@ var
         if (LArrObj.O['textEdit'].Expression['insert'].DataType = dtObject) and
            (LArrObj.O['textEdit'].Expression['replace'].DataType = dtObject) then
         begin
+          { InsertReplaceEdit }
+
           // Insert range
           LRange := LArrObj.O['textEdit'].O['insert'];
           TLSPInsertReplaceEdit(item.textEdit).insert.startPos.line := LRange.O['start'].I['line'];
@@ -1329,6 +1416,8 @@ var
         end
         else
         begin
+          { TextEdit }
+
           // Range
           if LArrObj.O['textEdit'].Expression['range'].DataType = dtObject then
           begin
@@ -1341,7 +1430,7 @@ var
         end;
       end;
 
-      // Tags array of integers
+      // tags?: CompletionItemTag[];
       if LArrObj.Expression['tags'].DataType = dtArray then
       begin
         LArr1 := LArrObj.A['tags'];
@@ -1350,7 +1439,10 @@ var
           item.tags[j] := LArr1.I[j];
       end;
 
-      // Additional text edits
+      // textEditText?: string;
+      item.textEditText := LArrObj.S['textEditText'];
+
+      // additionalTextEdits?: TextEdit[];
       if LArrObj.Expression['additionalTextEdits'].DataType = dtArray then
       begin
         LArr1 := LArrObj.A['additionalTextEdits'];
@@ -1375,7 +1467,7 @@ var
         end;
       end;
 
-      // Commit characters
+      // commitCharacters?: string[];
       if LArrObj.Expression['commitCharacters'].DataType = dtArray then
       begin
         LArr1 := LArrObj.A['commitCharacters'];
@@ -1384,7 +1476,7 @@ var
           item.commitCharacters[j] := LArr1.S[j];
       end;
 
-      // Command
+      // command?: Command;
       if LArrObj.Check('command') then
       begin
         item.command.title := LArrObj.O['command'].S['title'];
@@ -1408,6 +1500,30 @@ var
       Inc(i);
     end;
   end;
+
+  procedure ReadStringArray(const s: string; var arr: TArray<string>);
+  var
+    i: Integer;
+    LArray: ISuperArray;
+    LMember: IMember;
+  begin
+    if (LJson[s].DataType = dtArray) then
+    begin
+      LArray := LJson[s].AsArray;
+      SetLength(arr,LArray.Length);
+      i := 0;
+      for LMember in LArray do
+      begin
+        if LMember.DataType = dtString then
+        begin
+          arr[i] := LMember.AsString;
+          Inc(i);
+        end;
+      end;
+      if i <> Length(arr) then
+        SetLength(arr, i);
+    end;
+  end;
 begin
   Result := TLSPCompletionList.Create;
   ErrorCode := 0;
@@ -1422,10 +1538,17 @@ begin
     ErrorMessage := LJson['error'].AsObject.S['message'];
   end;
 
+  //
+  // result: CompletionItem[] | CompletionList | null
+  //
   if (LJson[s].DataType = dtArray) then
   begin
-    // Process an array of completion items. The result is assumed to be complete.
+    // result: CompletionItem[];
+
+    // The result is assumed to be complete.
     Result.isIncomplete := False;
+
+    // Read array of completion items.
     LArray := LJson[s].AsArray;
     if LArray.Length > 0 then
       ProcessArray(Result.items, LArray);
@@ -1433,10 +1556,78 @@ begin
   end
   else if LJson[s].DataType = dtObject then
   begin
-    // Process Completion list. There may be additional partial results.
-    if LJson[s].AsObject.Expression[s].DataType = dtObject then
-      Result.isIncomplete := LJson[s].AsObject.O[s].B['isInComplete'];
+    // result: CompletionList;
 
+    // There may be additional partial results.
+    Result.isIncomplete := LJson[s].AsObject.B['isInComplete'];
+
+    // itemDefaults
+    if LJson[s].AsObject.Expression['itemDefaults'].DataType = dtObject then
+    begin
+      LObject := LJson[s].AsObject.O['itemDefaults'];
+
+      // Commit characters
+      if LObject.Expression['commitCharacters'].DataType = dtArray then
+      begin
+        LArray2 := LObject.A['commitCharacters'];
+        SetLength(Result.itemDefaults.commitCharacters, LArray2.Length);
+        for i := 0 to LArray2.Length - 1 do
+          Result.itemDefaults.commitCharacters[i] := LArray2.S[i];
+      end;
+
+      // editRange: Range | { insert: Range; replace: Range; }
+      if LObject.Expression['editRange'].DataType = dtObject then
+      begin
+        if LObject.O['editRange'].Expression['replace'].DataType = dtObject then
+        begin
+          Result.itemDefaults.editRange := TLSPInsertReplaceEdit.Create;
+
+          // Insert range
+          LRange := LObject.O['editRange'].O['insert'];
+          TLSPInsertReplaceEdit(Result.itemDefaults.editRange).insert.startPos.line := LRange.O['start'].I['line'];
+          TLSPInsertReplaceEdit(Result.itemDefaults.editRange).insert.startPos.character := LRange.O['start'].I['character'];
+          TLSPInsertReplaceEdit(Result.itemDefaults.editRange).insert.endPos.line := LRange.O['end'].I['line'];
+          TLSPInsertReplaceEdit(Result.itemDefaults.editRange).insert.endPos.character := LRange.O['end'].I['character'];
+
+          // Replace range
+          LRange := LObject.O['editRange'].O['replace'];
+          TLSPInsertReplaceEdit(Result.itemDefaults.editRange).replace.startPos.line := LRange.O['start'].I['line'];
+          TLSPInsertReplaceEdit(Result.itemDefaults.editRange).replace.startPos.character := LRange.O['start'].I['character'];
+          TLSPInsertReplaceEdit(Result.itemDefaults.editRange).replace.endPos.line := LRange.O['end'].I['line'];
+          TLSPInsertReplaceEdit(Result.itemDefaults.editRange).replace.endPos.character := LRange.O['end'].I['character'];
+        end
+        else
+        begin
+          Result.itemDefaults.editRange := TLSPTextEdit.Create;
+
+          // Range
+          LRange := LObject.O['editRange'];
+          Result.itemDefaults.editRange.range.startPos.line := LRange.O['start'].I['line'];
+          Result.itemDefaults.editRange.range.startPos.character := LRange.O['start'].I['character'];
+          Result.itemDefaults.editRange.range.endPos.line := LRange.O['end'].I['line'];
+          Result.itemDefaults.editRange.range.endPos.character := LRange.O['end'].I['character'];
+        end;
+      end;
+
+      // insertTextFormat?: InsertTextFormat;
+      Result.itemDefaults.insertTextFormat := LObject.I['insertTextFormat'];
+
+      // insertTextMode?: InsertTextMode;
+      Result.itemDefaults.insertTextMode := LObject.I['insertTextMode'];
+
+      // Data (any JSON data that is preserved on a completion item between a completion and a completion resolve request.)
+      if LObject.Check('data') then
+      begin
+        if LObject.Expression['data'].DataType = dtObject then
+          Result.itemDefaults.data := LObject.O['data'].AsJSON
+        else if LObject.Expression['data'].DataType = dtArray then
+          Result.itemDefaults.data := LObject.A['data'].AsJSON
+        else
+          Result.itemDefaults.data := LObject.V['data'];
+      end;
+    end;
+
+    // items: CompletionItem[]
     if LJson[s].AsObject.Expression['items'].DataType = dtArray then
     begin
       LArray := LJson[s].AsObject.A['items'];
@@ -1701,6 +1892,205 @@ begin
   end;
   if i <> Length(Result.colors) then
     SetLength(Result.colors, i);
+end;
+
+function JsonDocumentDiagnosticReportToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage:
+    string; var retriggerRequest: Boolean): TLSPRelatedDocumentDiagnosticReport;
+var
+  s: string;
+  i: Integer;
+  LObject: ISuperObject;
+
+  procedure ReadDiagnosticReport(var documentReport: TLSPDocumentDiagnosticReport; const AObject: ISuperObject);
+  var
+    LArray,LArray2,LArray3: ISuperArray;
+    LRange: ISuperObject;
+    LMember,LMem: IMember;
+    LObject,LObj: ISuperObject;
+    i,j,k: Integer;
+  begin
+    // DocumentDiagnosticReportKind = 'full' | 'unchanged';
+    documentReport.kind := AObject.S['kind'];
+
+    // resultId?: string;
+    documentReport.resultId := AObject.S['resultId'];
+
+    // items: Diagnostic[];
+    if AObject.Expression['items'].DataType = dtArray then
+    begin
+      // Array of diagnostic information
+      LArray := AObject.A['items'];
+      SetLength(documentReport.items, LArray.Length);
+      i := 0;
+      for LMember in LArray do
+      begin
+        if LMember.DataType <> dtObject then Continue;
+        LObject := LMember.AsObject;
+
+        // The range at which the message applies.
+        if LObject.Expression['range'].DataType = dtObject then
+        begin
+          LRange := LObject.O['range'];
+          documentReport.items[i].range.startPos.line := LRange.O['start'].I['line'];
+          documentReport.items[i].range.startPos.character := LRange.O['start'].I['character'];
+          documentReport.items[i].range.endPos.line := LRange.O['end'].I['line'];
+          documentReport.items[i].range.endPos.character := LRange.O['end'].I['character'];
+        end;
+
+        // The diagnostic's severity.
+        documentReport.items[i].severity := LObject.I['severity'];
+
+        // The diagnostic's code, which might appear in the user interface.
+        if LObject.Expression['code'].DataType = dtInteger then
+          documentReport.items[i].code := LObject.I['code']
+        else if LObject.Expression['code'].DataType = dtString then
+          documentReport.items[i].code := LObject.S['code'];
+
+        // An optional property to describe the error code
+        if LObject.Expression['codeDescription'].DataType = dtObject then
+          documentReport.items[i].codeDescription.href := LObject.O['codeDescription'].S['href'];
+
+        // A human-readable string describing the source of this diagnostic
+        documentReport.items[i].source := LObject.S['source'];
+
+        // The diagnostic's message.
+        documentReport.items[i].messageString := LObject.S['message'];
+
+        // Additional metadata about the diagnostic.
+        if LObject.Expression['tags'].DataType = dtArray then
+        begin
+          LArray2 := LObject.A['tags'];
+          SetLength(documentReport.items[i].tags, LArray2.Length);
+          for j := 0 to LArray2.Length - 1 do
+          begin
+            documentReport.items[i].tags[j] := LArray2.I[j];
+          end;
+        end;
+
+        // An array of related diagnostic information
+        if LObject.Expression['relatedInformation'].DataType = dtArray then
+        begin
+          LArray3 := LObject.A['relatedInformation'];
+          SetLength(documentReport.items[i].relatedInformation, LArray3.Length);
+          k := 0;
+          for LMem in LArray3 do
+          begin
+            if LMem.DataType <> dtObject then Continue;
+            LObj := LMem.AsObject;
+            if LObj.Expression['location'].DataType = dtObject then
+            begin
+              documentReport.items[i].relatedInformation[k].location.uri := LObj.O['location'].S['uri'];
+
+              // The location of this related diagnostic information.
+              if LObj.O['location'].Expression['range'].DataType = dtArray then
+              LRange := LObj.O['location'].O['range'];
+              documentReport.items[i].relatedInformation[k].location.range.startPos.line := LRange.O['start'].I['line'];
+              documentReport.items[i].relatedInformation[k].location.range.startPos.character := LRange.O['start'].I['character'];
+              documentReport.items[i].relatedInformation[k].location.range.endPos.line := LRange.O['end'].I['line'];
+              documentReport.items[i].relatedInformation[k].location.range.endPos.character := LRange.O['end'].I['character'];
+            end;
+
+            // The message of this related diagnostic information.
+            documentReport.items[i].relatedInformation[k].messageString := LObj.S['messageString'];
+            Inc(k);
+          end;
+          if k <> Length(documentReport.items[i].relatedInformation) then
+            SetLength(documentReport.items[i].relatedInformation, k);
+        end;
+
+        // Data (any)
+        if (LObject.Check('data')) then
+        begin
+          if LObject.Expression['data'].DataType = dtObject then
+            documentReport.items[i].data := LObject.O['data'].AsJSON
+          else if LObject.Expression['data'].DataType = dtArray then
+            documentReport.items[i].data := LObject.A['data'].AsJSON
+          else
+            documentReport.items[i].data := LObject.V['data'].AsJSON;
+        end;
+        Inc(i);
+      end;
+      if i <> Length(documentReport.items) then
+        SetLength(documentReport.items, i);
+    end;
+  end;
+begin
+  Result := TLSPRelatedDocumentDiagnosticReport.Create;
+
+  s := 'result';
+
+  // Check for errors
+  if (LJson['error'].DataType = dtObject) and (LJson['error'].AsObject.S['message'] <> '') then
+  begin
+    ErrorCode := LJson['error'].AsObject.I['code'];
+    ErrorMessage := LJson['error'].AsObject.S['message'];
+    if ErrorCode = Integer(TLSPErrorCodes.ServerCancelled) then
+    begin
+      retriggerRequest := true;
+      if (LJson[s].DataType = dtObject) and (LJson[s].AsObject.Expression['retriggerRequest'].DataType = dtBoolean) then
+        retriggerRequest := LJson[s].AsObject.B['retriggerRequest'];
+    end;
+  end;
+
+  if LJson[s].DataType = dtObject then
+  begin
+    // Read diagnostic report
+    ReadDiagnosticReport(TLSPDocumentDiagnosticReport(Result), LJson[s].AsObject);
+
+    // relatedDocuments?: {
+    //	[uri: string /** DocumentUri */]:
+    //		FullDocumentDiagnosticReport | UnchangedDocumentDiagnosticReport;
+    // };
+    //
+    // Ex.
+    // relatedDocuments:{"file:///C%3A/files/foo.h":{kind:"unchanged",resultId:"123"}}
+    if LJson[s].AsObject.Expression['relatedDocuments'].DataType = dtObject then
+    begin
+      LObject := LJson[s].AsObject.O['relatedDocuments'];
+      LObject.First;
+      SetLength(Result.relatedDocuments, LObject.Count);
+      for i := 0 to LObject.Count - 1 do
+      begin
+        if (LObject.CurrentKey <> '') and (LObject.Expression[LObject.CurrentKey].DataType = dtObject) then
+        begin
+          Result.relatedDocuments[i].uri := LObject.CurrentKey;
+          ReadDiagnosticReport(Result.relatedDocuments[i].documentDiagnosticReport, LObject.O[LObject.CurrentKey]);
+        end;
+        LObject.Next;
+      end;
+    end;
+  end;
+
+  // See if we have partial results.
+  s := 'partial result';
+  if LJson[s].DataType = dtObject then
+  begin
+    // Read diagnostic report
+    ReadDiagnosticReport(TLSPDocumentDiagnosticReport(Result), LJson[s].AsObject);
+
+    // relatedDocuments?: {
+    //	[uri: string /** DocumentUri */]:
+    //		FullDocumentDiagnosticReport | UnchangedDocumentDiagnosticReport;
+    // };
+    //
+    // Ex.
+    // relatedDocuments:{"file:///C%3A/files/foo.h":{kind:"unchanged",resultId:"123"}}
+    if LJson[s].AsObject.Expression['relatedDocuments'].DataType = dtObject then
+    begin
+      LObject := LJson[s].AsObject.O['relatedDocuments'];
+      LObject.First;
+      SetLength(Result.relatedDocuments, LObject.Count);
+      for i := 0 to LObject.Count - 1 do
+      begin
+        if (LObject.CurrentKey <> '') and (LObject.Expression[LObject.CurrentKey].DataType = dtObject) then
+        begin
+          Result.relatedDocuments[i].uri := LObject.CurrentKey;
+          ReadDiagnosticReport(Result.relatedDocuments[i].documentDiagnosticReport, LObject.O[LObject.CurrentKey]);
+        end;
+        LObject.Next;
+      end;
+    end;
+  end;
 end;
 
 function JsonDocumentFormattingResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage:
@@ -2178,6 +2568,7 @@ begin
     else
       Result.foldingRanges[i].endCharacter := -1;
     Result.foldingRanges[i].kind := LArrayObj.S['kind'];
+    Result.foldingRanges[i].collapsedText := LArrayObj.S['collapsedText'];
     Inc(i);
   end;
   if i <> Length(Result.foldingRanges) then
@@ -2427,6 +2818,46 @@ var
     end;
   end;
 
+  procedure ReadNoteBookSelectors(const s: string; var arr: TArray<TLSPNoteBookSelector>);
+  var
+    i: Integer;
+    LArray: ISuperArray;
+    LMember: IMember;
+    LObj: ISuperObject;
+  begin
+    // "notebookSelector". The notebook to be synced.
+    if (LJson[s].DataType = dtArray) then
+    begin
+      LArray := LJson[s].AsArray;
+      SetLength(arr, LArray.Length);
+      i := 0;
+      for LMember in LArray do
+      begin
+        if LMember.DataType = dtObject then
+        begin
+          if LMember.AsObject.Expression['notebook'].DataType = dtObject then
+          begin
+            LObj := LMember.AsObject.O['notebook'];
+            if Assigned(LObj) then
+            begin
+              arr[i].notebookFilter.notebookType := LObj.S['notebookType'];
+              arr[i].notebookFilter.scheme := LObj.S['scheme'];
+              arr[i].notebookFilter.pattern := LObj.S['pattern'];
+            end;
+          end
+          else if LMember.AsObject.Expression['notebook'].DataType = dtString then
+          begin
+            arr[i].notebook := LMember.AsObject.S['notebook'];
+          end;
+          ReadStringArray(s + '.notebook.cells', arr[i].cells);
+          Inc(i);
+        end;
+      end;
+      if i <> Length(arr) then
+        SetLength(arr, i);
+    end;
+  end;
+
   procedure ReadFileOperation(const s: string; var fileOp: TLSPFileOperationRegistrationOptions);
   var
     i: Integer;
@@ -2491,16 +2922,32 @@ begin
   // Server capabilities
   Result.capabilities := TLSPServerCapabilities.Create;
 
-  // textDocumentSync
-  //
-  // Defines how text documents are synced.
-
   s := 'result.capabilities';
 
   if LJson[s].DataType <> dtObject then Exit;
 
   LCapabilities := LJson[s].AsObject;
 
+  // positionEncoding
+  //
+  // The position encoding the server picked from the encodings offered
+	// by the client via the client capability `general.positionEncodings`.
+  //
+	// If the client didn't provide any position encodings the only valid
+	// value that a server can return is 'utf-16'.
+  //
+	// If omitted it defaults to 'utf-16'.
+  //
+	// @since 3.17.0
+  //
+  if (LCapabilities.Expression['positionEncoding'].DataType = dtArray) then
+  begin
+    ReadStringArray(s+'.positionEncoding',Result.capabilities.positionEncoding);
+  end;
+
+  // textDocumentSync
+  //
+  // Defines how text documents are synced.
   if LCapabilities.Expression['textDocumentSync'].DataType = dtObject then
   begin
     LObject := LCapabilities.O['textDocumentSync'];
@@ -2540,6 +2987,28 @@ begin
     Result.capabilities.textDocumentSync.openClose := (Result.capabilities.textDocumentSync.change > 0);
   end;
 
+  // notebookDocumentSync
+  //
+  // Defines how notebook documents are synced.
+  if LCapabilities.Expression['notebookDocumentSync'].DataType = dtObject then
+  begin
+    LObject := LCapabilities.O['notebookDocumentSync'].AsObject;
+    Result.capabilities.notebookDocumentSync := TLSPNotebookDocumentSyncRegistrationOptions.Create;
+
+    // Whether save notification should be forwarded to
+    // the server. Will only be honored if mode === `notebook`.
+    Result.capabilities.notebookDocumentSync.save := LObject.B['save'];
+
+    // The id used to register the request. The id can be used to deregister
+	  // the request again. See also Registration#id.
+    if LCapabilities.Expression['notebookDocumentSync.id'].DataType = dtString then
+      Result.capabilities.notebookDocumentSync.id := LObject.S['id'];
+
+    // The notebooks to be synced
+    if LCapabilities.Expression['notebookDocumentSync.notebookSelector'].DataType = dtArray then
+      ReadNoteBookSelectors(s + '.notebookDocumentSync.notebookSelector', Result.capabilities.notebookDocumentSync.notebookSelector);
+  end;
+
   // completionProvider
   //
   // The server provides completion support.
@@ -2556,6 +3025,10 @@ begin
 
     // "resolveProvider". The server provides support to resolve additional information for a completion item.
     Result.capabilities.completionProvider.resolveProvider := LObject.B['resolveProvider'];
+
+    // "completionItem". The server has support for completion item label details.
+    if LObject.Expression['completionItem'].DataType = dtObject then
+      Result.capabilities.completionProvider.completionItem.labelDetailsSupport := LObject.O['completionItem'].B['labelDetailsSupport'];
 
     // "workDoneProgress".
     Result.capabilities.completionProvider.workDoneProgress := LObject.B['workDoneProgress'];
@@ -3035,6 +3508,87 @@ begin
     end;
   end;
 
+  // typeHierarchyProvider
+  //
+  // The server provides type hierarchy support.
+  if (LCapabilities.Expression['typeHierarchyProvider'].DataType = dtObject) or
+     ((LCapabilities.Expression['typeHierarchyProvider'].DataType = dtBoolean) and LCapabilities.B['typeHierarchyProvider']) then
+  begin
+    Result.capabilities.typeHierarchyProvider := TLSPTypeHierarchyRegistrationOptions.Create;
+    if LCapabilities.Expression['typeHierarchyProvider'].DataType = dtObject then
+    begin
+      // "documentSelector". A document selector to identify the scope of the registration.
+      ReadDocumentSelector(s+'.typeHierarchyProvider.documentSelector', Result.capabilities.typeHierarchyProvider.documentSelector);
+
+      // "workDoneProgress".
+      Result.capabilities.typeHierarchyProvider.workDoneProgress := LCapabilities.O['typeHierarchyProvider'].B['workDoneProgress'];
+    end;
+  end;
+
+  // inlineValueProvider
+  //
+  // Whether server provides inline values.
+  if (LCapabilities.Expression['inlineValueProvider'].DataType = dtObject) or
+     ((LCapabilities.Expression['inlineValueProvider'].DataType = dtBoolean) and LCapabilities.B['inlineValueProvider']) then
+  begin
+    Result.capabilities.inlineValueProvider := TLSPInlineValueRegistrationOptions.Create;
+    if LCapabilities.Expression['inlineValueProvider'].DataType = dtObject then
+    begin
+      // "documentSelector". A document selector to identify the scope of the registration.
+      ReadDocumentSelector(s+'.inlineValueProvider.documentSelector', Result.capabilities.inlineValueProvider.documentSelector);
+
+      // "workDoneProgress".
+      Result.capabilities.inlineValueProvider.workDoneProgress := LCapabilities.O['inlineValueProvider'].B['workDoneProgress'];
+    end;
+  end;
+
+  // inlayHintProvider
+  //
+  // Whether server provides moniker support.
+  if (LCapabilities.Expression['inlayHintProvider'].DataType = dtObject) or
+     ((LCapabilities.Expression['inlayHintProvider'].DataType = dtBoolean) and LCapabilities.B['inlayHintProvider']) then
+  begin
+    Result.capabilities.inlayHintProvider := TLSPInlayHintRegistrationOptions.Create;
+    if LCapabilities.Expression['inlayHintProvider'].DataType = dtObject then
+    begin
+      // "documentSelector". A document selector to identify the scope of the registration.
+      ReadDocumentSelector(s+'.inlayHintProvider.documentSelector', Result.capabilities.inlayHintProvider.documentSelector);
+
+      // "resolveProvider".
+      Result.capabilities.inlayHintProvider.resolveProvider := LCapabilities.O['inlayHintProvider'].B['resolveProvider'];
+
+      // "workDoneProgress".
+      Result.capabilities.inlayHintProvider.workDoneProgress := LCapabilities.O['inlayHintProvider'].B['workDoneProgress'];
+    end;
+  end;
+
+  // diagnosticProvider
+  //
+  // The server has support for pull model diagnostics.
+  if (LCapabilities.Expression['diagnosticProvider'].DataType = dtObject) then
+  begin
+    LObject := LCapabilities.O['diagnosticProvider'].AsObject;
+    Result.capabilities.diagnosticProvider := TLSPDiagnosticRegistrationOptions.Create;
+
+    // An optional identifier under which the diagnostics are managed by the client.
+    Result.capabilities.diagnosticProvider.identifier := LObject.S['id'];
+
+    // Whether the language has inter file dependencies meaning that
+	  // editing code in one file can result in a different diagnostic
+	  // set in another file. Inter file dependencies are common for
+	  // most programming languages and typically uncommon for linters.
+    Result.capabilities.diagnosticProvider.interFileDependencies := LObject.B['interFileDependencies'];
+
+    // The server provides support for workspace diagnostics as well.
+    Result.capabilities.diagnosticProvider.workspaceDiagnostics := LObject.B['workspaceDiagnostics'];
+
+    // "documentSelector". A document selector to identify the scope of the registration.
+    ReadDocumentSelector(s+'.diagnosticProvider.documentSelector', Result.capabilities.diagnosticProvider.documentSelector);
+
+    // "workDoneProgress".
+    Result.capabilities.diagnosticProvider.workDoneProgress := LObject.B['workDoneProgress'];
+  end;
+
   // Workspace
   //
   // Workspace specific server capabilities
@@ -3236,6 +3790,82 @@ var
   i,j: Integer;
 begin
   Result := TLSPPrepareCallHierarchyResponse.Create;
+  ErrorCode := 0;
+  ErrorMessage := '';
+
+  s := 'result';
+
+  // Check for errors
+  if (LJson['error'].DataType = dtObject) and (LJson['error.message'].AsString <> '') then
+  begin
+    ErrorCode := LJson['error."code"'].AsInteger;
+    ErrorMessage := LJson['error."message"'].AsString;
+  end;
+
+  if LJson[s].DataType <> dtArray then Exit;
+
+  LArray := LJson[s].AsArray;
+
+  SetLength(Result.items, LArray.Length);
+  i := 0;
+  for LMember in LArray do
+  begin
+    if LMember.DataType = dtObject then
+    begin
+      LObject := LMember.AsObject;
+      Result.items[i].name := LObject.S['name'];
+      Result.items[i].kind := TLSPSymbolKind(LObject.I['kind']);
+      Result.items[i].detail := LObject.S['detail'];
+      Result.items[i].uri := LObject.S['uri'];
+
+      // Range
+      if LObject.Expression['range'].DataType = dtObject then
+      begin
+        LRange := LObject.O['range'];
+        Result.items[i].range.startPos.line := LRange.O['start'].I['line'];
+        Result.items[i].range.startPos.character := LRange.O['start'].I['character'];
+        Result.items[i].range.endPos.line := LRange.O['end'].I['line'];
+        Result.items[i].range.endPos.character := LRange.O['end'].I['character'];
+      end;
+
+      // Selection Range
+      if LObject.Expression['selectionRange'].DataType = dtObject then
+      begin
+        LRange := LObject.O['selectionRange'];
+        Result.items[i].selectionRange.startPos.line := LRange.O['start'].I['line'];
+        Result.items[i].selectionRange.startPos.character := LRange.O['start'].I['character'];
+        Result.items[i].selectionRange.endPos.line := LRange.O['end'].I['line'];
+        Result.items[i].selectionRange.endPos.character := LRange.O['end'].I['character'];
+      end;
+
+      // Tags
+      if LArray.O[i].Expression['tags'].DataType = dtArray then
+      begin
+        LArr := LArray.O[i].A['tags'];
+        SetLength(Result.items[i].tags, LArr.Length);
+        for j := 0 to LArr.Length - 1 do
+        begin
+          Result.items[i].tags[j] := LArr.I[j];
+        end;
+      end;
+      Inc(i);
+    end;
+  end;
+  if i <> Length(Result.items) then
+    SetLength(Result.items, i);
+end;
+
+function JsonPrepareTypeHierarchyResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage:
+    string): TLSPPrepareTypeHierarchyResponse;
+var
+  LArray,LArr: ISuperArray;
+  LRange: ISuperObject;
+  LObject: ISuperObject;
+  LMember: IMember;
+  s: string;
+  i,j: Integer;
+begin
+  Result := TLSPPrepareTypeHierarchyResponse.Create;
   ErrorCode := 0;
   ErrorMessage := '';
 
@@ -3530,6 +4160,469 @@ begin
   end;
   if i <> Length(Result.diagnostics) then
     SetLength(Result.diagnostics, i);
+end;
+
+function JsonInlayHintResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPInlayHintResult;
+var
+  LArray,LArray1: ISuperArray;
+  LMember,LMember1: IMember;
+  s: string;
+  i,j: Integer;
+
+  procedure ReadRange(var range: TLSPRange; const supObj: ISuperObject);
+  begin
+    range.startPos.line := supObj.O['start'].I['line'];
+    range.startPos.character := supObj.O['start'].I['character'];
+    range.endPos.line := supObj.O['end'].I['line'];
+    range.endPos.character := supObj.O['end'].I['character'];
+  end;
+
+  procedure ReadTextEdit(var edit: TLSPTextEdit; const supObj: ISuperObject);
+  begin
+    if not Assigned(supObj) then Exit;
+
+    // NewText
+    edit.newText := supObj.S['newText'];
+
+    // Range
+    if supObj.Expression['range'].DataType = dtObject then
+    begin
+      edit.range.startPos.line := supObj.O['range'].O['start'].I['line'];
+      edit.range.startPos.character := supObj.O['range'].O['start'].I['character'];
+      edit.range.endPos.line := supObj.O['range'].O['end'].I['line'];
+      edit.range.endPos.character := supObj.O['range'].O['end'].I['character'];
+    end;
+  end;
+
+begin
+  Result := TLSPInlayHintResult.Create;
+  ErrorCode := 0;
+  ErrorMessage := '';
+
+  s := 'result';
+
+  // Check for errors
+  if (LJson['error'].DataType = dtObject) and (LJson['error'].AsObject.S['message'] <> '') then
+  begin
+    ErrorCode := LJson['error'].AsObject.I['code'];
+    ErrorMessage := LJson['error'].AsObject.S['message'];
+  end;
+
+  // The result can be InlayHint[] or null
+  if (LJson[s].DataType = dtArray) then
+  begin
+    // InlayHint array
+    LArray := LJson[s].AsArray;
+    SetLength(Result.inlayHints, LArray.Length);
+    i := 0;
+    for LMember in LArray do
+    begin
+      if LMember.DataType = dtObject then
+      begin
+        Result.inlayHints[i] := TLSPInlayHint.Create;
+
+        // position: Position;
+        if LMember.AsObject.Expression['position'].DataType = dtObject then
+        begin
+          Result.inlayHints[i].position.line := LMember.AsObject.O['position'].I['line'];
+          Result.inlayHints[i].position.character := LMember.AsObject.O['position'].I['character'];
+        end;
+
+        // label: string | InlayHintLabelPart[]
+        if LMember.AsObject.Expression['label'].DataType = dtArray then
+        begin
+          // label: InlayHintLabelPart[]
+          LArray1 := LMember.AsObject.A['label'];
+          SetLength(Result.inlayHints[i].labelParts, LArray1.Length);
+          j := 0;
+          for LMember1 in LArray1 do
+          begin
+            if LMember1.DataType = dtObject then
+            begin
+              // InlayHintLabelPart.value: string;
+              Result.inlayHints[i].labelParts[j].value := LMember1.AsObject.S['value'];
+
+              // InlayHintLabelPart.tooltip?: string | MarkupContent;
+              if LMember1.AsObject.Expression['tooltip'].DataType = dtObject then
+              begin
+                // InlayHintLabelPart.tooltip.value: string
+                Result.inlayHints[i].labelParts[j].tooltip.value := LMember1.AsObject.O['tooltip'].S['value'];
+
+                // InlayHintLabelPart.tooltip.kind: string
+                Result.inlayHints[i].labelParts[j].tooltip.kind := LMember1.AsObject.O['tooltip'].S['kind'];
+              end
+              else if LMember1.AsObject.Expression['tooltip'].DataType = dtString then
+              begin
+                // InlayHintLabelPart.tooltip: string
+                Result.inlayHints[i].labelParts[j].tooltip.value := LMember1.AsObject.S['tooltip'];
+              end;
+
+              // InlayHintLabelPart.location?: Location;
+              if LMember1.AsObject.Expression['location'].DataType = dtObject then
+              begin
+                // InlayHintLabelPart.location.uri: string
+                Result.inlayHints[i].labelParts[j].location.uri := LMember1.AsObject.O['location'].S['uri'];
+
+                // InlayHintLabelPart.location.range: Range
+                if LMember1.AsObject.O['location'].Expression['range'].DataType = dtObject then
+                  ReadRange(Result.inlayHints[i].labelParts[j].location.range, LMember1.AsObject.O['location'].O['range']);
+              end;
+
+              // InlayHintLabelPart.command?: Command;
+              if LMember1.AsObject.Expression['command'].DataType = dtObject then
+              begin
+                Result.inlayHints[i].labelParts[j].command.title := LMember1.AsObject.O['command'].S['title'];
+                Result.inlayHints[i].labelParts[j].command.command := LMember1.AsObject.O['command'].S['command'];
+                if LMember1.AsObject.O['command'].Expression['arguments'].DataType = dtArray then
+                  Result.inlayHints[i].labelParts[j].command.arguments := LMember1.AsObject.O['command'].A['arguments'].AsJSON;
+              end;
+            end;
+            Inc(j);
+          end;
+        end
+        else if LArray.O[i].Expression['label'].DataType = dtString then
+        begin
+          // label: string
+          SetLength(Result.inlayHints[i].labelParts,1);
+          Result.inlayHints[i].labelParts[0].value := LMember.AsObject.S['label'];
+        end;
+
+        // kind?: InlayHintKind;
+        if LMember.AsObject.Expression['kind'].DataType = dtInteger then
+        begin
+          Result.inlayHints[i].kind := LMember.AsObject.I['kind'];
+        end;
+
+        // textEdits?: TextEdit[];
+        if LMember.AsObject.Expression['textEdits'].DataType = dtArray then
+        begin
+          LArray1 := LMember.AsObject.A['textEdits'];
+          SetLength(Result.inlayHints[i].textEdits, LArray1.Length);
+          j := 0;
+          for LMember1 in LArray1 do
+          begin
+            ReadTextEdit(Result.inlayHints[i].textEdits[j], LMember1.AsObject);
+            Inc(j);
+          end;
+        end;
+
+        // tooltip?: string | MarkupContent;
+        if LMember.AsObject.Expression['tooltip'].DataType = dtObject then
+        begin
+          // tooltip.value: string
+          Result.inlayHints[i].tooltip.value := LMember.AsObject.O['tooltip'].S['value'];
+
+          // tooltip.kind: string
+          Result.inlayHints[i].tooltip.kind := LMember.AsObject.O['tooltip'].S['kind'];
+        end
+        else if LMember.AsObject.Expression['tooltip'].DataType = dtString then
+        begin
+          // tooltip: string
+          Result.inlayHints[i].tooltip.value := LMember.AsObject.S['tooltip'];
+        end;
+
+        // paddingLeft?: boolean;
+        Result.inlayHints[i].paddingLeft := LMember.AsObject.B['paddingLeft'];
+
+        // paddingRight?: boolean;
+        Result.inlayHints[i].paddingRight := LMember.AsObject.B['paddingRight'];
+
+        // data?: LSPAny;
+        if (LMember.AsObject.Check('data')) then
+        begin
+          if LMember.AsObject.Expression['data'].DataType = dtObject then
+            Result.inlayHints[i].data := LMember.AsObject.O['data'].AsJSON
+          else if LMember.AsObject.Expression['data'].DataType = dtArray then
+            Result.inlayHints[i].data := LMember.AsObject.A['data'].AsJSON
+          else
+            Result.inlayHints[i].data := LMember.AsObject.V['data'].AsJSON;
+        end;
+      end;
+      Inc(i);
+    end;
+  end
+end;
+
+procedure JsonInlayHintRefreshToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string);
+begin
+  ErrorCode := 0;
+  ErrorMessage := '';
+
+  // Check for errors
+  if (LJson['error'].DataType = dtObject) and (LJson['error'].AsObject.S['message'] <> '') then
+  begin
+    ErrorCode := LJson['error'].AsObject.I['code'];
+    ErrorMessage := LJson['error'].AsObject.S['message'];
+  end;
+end;
+
+function JsonInlayHintResolveToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPInlayHint;
+var
+  LObject: ISuperObject;
+  LArray1: ISuperArray;
+  LMember1: IMember;
+  s: string;
+  j: Integer;
+
+  procedure ReadRange(var range: TLSPRange; const supObj: ISuperObject);
+  begin
+    range.startPos.line := supObj.O['start'].I['line'];
+    range.startPos.character := supObj.O['start'].I['character'];
+    range.endPos.line := supObj.O['end'].I['line'];
+    range.endPos.character := supObj.O['end'].I['character'];
+  end;
+
+  procedure ReadTextEdit(var edit: TLSPTextEdit; const supObj: ISuperObject);
+  begin
+    if not Assigned(supObj) then Exit;
+
+    // NewText
+    edit.newText := supObj.S['newText'];
+
+    // Range
+    if supObj.Expression['range'].DataType = dtObject then
+    begin
+      edit.range.startPos.line := supObj.O['range'].O['start'].I['line'];
+      edit.range.startPos.character := supObj.O['range'].O['start'].I['character'];
+      edit.range.endPos.line := supObj.O['range'].O['end'].I['line'];
+      edit.range.endPos.character := supObj.O['range'].O['end'].I['character'];
+    end;
+  end;
+
+begin
+  Result := TLSPInlayHint.Create;
+  ErrorCode := 0;
+  ErrorMessage := '';
+
+  s := 'result';
+
+  // Check for errors
+  if (LJson['error'].DataType = dtObject) and (LJson['error'].AsObject.S['message'] <> '') then
+  begin
+    ErrorCode := LJson['error'].AsObject.I['code'];
+    ErrorMessage := LJson['error'].AsObject.S['message'];
+  end;
+
+  if LJson[s].DataType <> dtObject then Exit;
+
+  LObject := LJson[s].AsObject;
+
+  // position: Position;
+  if LObject.Expression['position'].DataType = dtObject then
+  begin
+    Result.position.line := LObject.O['position'].I['line'];
+    Result.position.character := LObject.O['position'].I['character'];
+  end;
+
+  // label: string | InlayHintLabelPart[]
+  if LObject.Expression['label'].DataType = dtArray then
+  begin
+    // label: InlayHintLabelPart[]
+    LArray1 := LObject.A['label'];
+    SetLength(Result.labelParts, LArray1.Length);
+    j := 0;
+    for LMember1 in LArray1 do
+    begin
+      if LMember1.DataType = dtObject then
+      begin
+        // InlayHintLabelPart.value: string;
+        Result.labelParts[j].value := LMember1.AsObject.S['value'];
+
+        // InlayHintLabelPart.tooltip?: string | MarkupContent;
+        if LMember1.AsObject.Expression['tooltip'].DataType = dtObject then
+        begin
+          // InlayHintLabelPart.tooltip.value: string
+          Result.labelParts[j].tooltip.value := LMember1.AsObject.O['tooltip'].S['value'];
+
+          // InlayHintLabelPart.tooltip.kind: string
+          Result.labelParts[j].tooltip.kind := LMember1.AsObject.O['tooltip'].S['kind'];
+        end
+        else if LMember1.AsObject.Expression['tooltip'].DataType = dtString then
+        begin
+          // InlayHintLabelPart.tooltip: string
+          Result.labelParts[j].tooltip.value := LMember1.AsObject.S['tooltip'];
+        end;
+
+        // InlayHintLabelPart.location?: Location;
+        if LMember1.AsObject.Expression['location'].DataType = dtObject then
+        begin
+          // InlayHintLabelPart.location.uri: string
+          Result.labelParts[j].location.uri := LMember1.AsObject.O['location'].S['uri'];
+
+          // InlayHintLabelPart.location.range: Range
+          if LMember1.AsObject.O['location'].Expression['range'].DataType = dtObject then
+            ReadRange(Result.labelParts[j].location.range, LMember1.AsObject.O['location'].O['range']);
+        end;
+
+        // InlayHintLabelPart.command?: Command;
+        if LMember1.AsObject.Expression['command'].DataType = dtObject then
+        begin
+          Result.labelParts[j].command.title := LMember1.AsObject.O['command'].S['title'];
+          Result.labelParts[j].command.command := LMember1.AsObject.O['command'].S['command'];
+          if LMember1.AsObject.O['command'].Expression['arguments'].DataType = dtArray then
+            Result.labelParts[j].command.arguments := LMember1.AsObject.O['command'].A['arguments'].AsJSON;
+        end;
+      end;
+      Inc(j);
+    end;
+  end
+  else if LObject.Expression['label'].DataType = dtString then
+  begin
+    // label: string
+    SetLength(Result.labelParts,1);
+    Result.labelParts[0].value := LObject.AsObject.S['label'];
+  end;
+
+  // kind?: InlayHintKind;
+  if LObject.Expression['kind'].DataType = dtInteger then
+  begin
+    Result.kind := LObject.I['kind'];
+  end;
+
+  // textEdits?: TextEdit[];
+  if LObject.Expression['textEdits'].DataType = dtArray then
+  begin
+    LArray1 := LObject.A['textEdits'];
+    SetLength(Result.textEdits, LArray1.Length);
+    j := 0;
+    for LMember1 in LArray1 do
+    begin
+      ReadTextEdit(Result.textEdits[j], LMember1.AsObject);
+      Inc(j);
+    end;
+  end;
+
+  // tooltip?: string | MarkupContent;
+  if LObject.Expression['tooltip'].DataType = dtObject then
+  begin
+    // tooltip.value: string
+    Result.tooltip.value := LObject.O['tooltip'].S['value'];
+
+    // tooltip.kind: string
+    Result.tooltip.kind := LObject.O['tooltip'].S['kind'];
+  end
+  else if LObject.Expression['tooltip'].DataType = dtString then
+  begin
+    // tooltip: string
+    Result.tooltip.value := LObject.S['tooltip'];
+  end;
+
+  // paddingLeft?: boolean;
+  Result.paddingLeft := LObject.B['paddingLeft'];
+
+  // paddingRight?: boolean;
+  Result.paddingRight := LObject.B['paddingRight'];
+
+  // data?: LSPAny;
+  if (LObject.Check('data')) then
+  begin
+    if LObject.Expression['data'].DataType = dtObject then
+      Result.data := LObject.O['data'].AsJSON
+    else if LObject.Expression['data'].DataType = dtArray then
+      Result.data := LObject.A['data'].AsJSON
+    else
+      Result.data := LObject.V['data'].AsJSON;
+  end;
+end;
+
+function JsonInlineValueResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string): TLSPInlineValueResult;
+var
+  s: string;
+  LArray: ISuperArray;
+  LMember: IMember;
+  InlineValueText: TLSPInlineValueText;
+  InlineValueVariableLookup: TLSPInlineValueVariableLookup;
+  InlineValueEvaluatableExpression: TLSPInlineValueEvaluatableExpression;
+
+  procedure ReadRange(var range: TLSPRange; const supObj: ISuperObject);
+  begin
+    range.startPos.line := supObj.O['start'].I['line'];
+    range.startPos.character := supObj.O['start'].I['character'];
+    range.endPos.line := supObj.O['end'].I['line'];
+    range.endPos.character := supObj.O['end'].I['character'];
+  end;
+
+begin
+  Result := TLSPInlineValueResult.Create;
+  ErrorCode := 0;
+  ErrorMessage := '';
+
+  s := 'result';
+
+  // Check for errors
+  if (LJson['error'].DataType = dtObject) and (LJson['error'].AsObject.S['message'] <> '') then
+  begin
+    ErrorCode := LJson['error'].AsObject.I['code'];
+    ErrorMessage := LJson['error'].AsObject.S['message'];
+  end;
+
+  // The result can be InlineValue[] or null
+  if (LJson[s].DataType = dtArray) then
+  begin
+    // InlineValue array
+    LArray := LJson[s].AsArray;
+    for LMember in LArray do
+    begin
+      if LMember.DataType = dtObject then
+      begin
+        if LMember.AsObject.Check('text') then
+        begin
+          // InlineValueText
+          InlineValueText := TLSPInlineValueText.Create;
+
+          // InlineValue.range: Range
+          ReadRange(InlineValueText.range, LMember.AsObject.O['range']);
+
+          // InlineValue.text: string
+          InlineValueText.text := LMember.AsObject.S['text'];
+
+          Result.inlineValues.Add(InlineValueText);
+        end
+        else if LMember.AsObject.Check('caseSensitiveLookup') or LMember.AsObject.Check('variableName') then
+        begin
+          // InlineValueVariableLookup
+          InlineValueVariableLookup := TLSPInlineValueVariableLookup.Create;
+
+          // InlineValue.range: Range
+          ReadRange(InlineValueVariableLookup.range, LMember.AsObject.O['range']);
+
+          // InlineValue.variableName: string
+          InlineValueVariableLookup.variableName := LMember.AsObject.S['variableName'];
+
+          // InlineValue.caseSensitiveLookup: boolean
+          InlineValueVariableLookup.caseSensitiveLookup := LMember.AsObject.B['caseSensitiveLookup'];
+
+          Result.inlineValues.Add(InlineValueVariableLookup);
+        end
+        else
+        begin
+          // InlineValueEvaluatableExpression
+          InlineValueEvaluatableExpression := TLSPInlineValueEvaluatableExpression.Create;
+
+          // InlineValue.range: Range
+          ReadRange(InlineValueEvaluatableExpression.range, LMember.AsObject.O['range']);
+
+          // InlineValue.text: string
+          InlineValueEvaluatableExpression.expression := LMember.AsObject.S['expression'];
+
+          Result.inlineValues.Add(InlineValueEvaluatableExpression);
+        end;
+      end;
+    end;
+  end;
+end;
+
+procedure JsonInlineValueRefreshToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string);
+begin
+  ErrorCode := 0;
+  ErrorMessage := '';
+
+  // Check for errors
+  if (LJson['error'].DataType = dtObject) and (LJson['error'].AsObject.S['message'] <> '') then
+  begin
+    ErrorCode := LJson['error'].AsObject.I['code'];
+    ErrorMessage := LJson['error'].AsObject.S['message'];
+  end;
 end;
 
 function JsonReadInitializeToClientCapabilities(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string):
@@ -3968,6 +5061,20 @@ begin
       Result.textDocument.foldingRange.dynamicRegistration := LObject.B['dynamicRegistration'];
       Result.textDocument.foldingRange.lineFoldingOnly := LObject.B['lineFoldingOnly'];
       Result.textDocument.foldingRange.rangeLimit := LObject.I['rangeLimit'];
+
+      if LObject.Expression['.foldingRangeKind'].DataType = dtObject then
+      begin
+        Result.textDocument.foldingRange.foldingRangeKind := TLSPFoldingRangeKind.Create;
+        if LObject.Expression['.foldingRangeKind.valueSet'].DataType = dtArray then
+          ReadStringArray(w+'.foldingRangeKind.valueSet',Result.textDocument.foldingRange.foldingRangeKind.valueSet);
+      end;
+
+      if LObject.Expression['.foldingRange'].DataType = dtObject then
+      begin
+        Result.textDocument.foldingRange.foldingRange := TLSPFoldingRanges.Create;
+        if LObject.Expression['.foldingRange.collapsedText'].DataType = dtBoolean then
+          Result.textDocument.foldingRange.foldingRange.collapsedText := LObject.O['foldingRange'].B['collapsedText'];
+      end;
     end;
 
     // textDocument/selectionRange
@@ -4009,6 +5116,8 @@ begin
       ReadStringArray(w+'.formats', Result.textDocument.semanticTokens.formats);
       Result.textDocument.semanticTokens.overlappingTokenSupport := LObject.B['overlappingTokenSupport'];
       Result.textDocument.semanticTokens.multilineTokenSupport := LObject.B['multilineTokenSupport'];
+      Result.textDocument.semanticTokens.serverCancelSupport := LObject.B['serverCancelSupport'];
+      Result.textDocument.semanticTokens.augmentsSyntaxTokens := LObject.B['augmentsSyntaxTokens'];
 
       LObject := LJson[w+'.requests'].AsObject;
       if Assigned(LObject) then
@@ -4046,6 +5155,50 @@ begin
       Result.textDocument.moniker := TLSPMonikerClientCapabilities.Create;
       Result.textDocument.moniker.dynamicRegistration := LObject.B['dynamicRegistration'];
     end;
+
+    // textDocument/typeHierarchy
+    w := 'params.capabilities.textDocument.typeHierarchy';
+    LObject := LJson[w].AsObject;
+    if Assigned(LObject) then
+    begin
+      Result.textDocument.typeHierarchy := TLSPTypeHierarchyClientCapabilities.Create;
+      Result.textDocument.typeHierarchy.dynamicRegistration := LObject.B['dynamicRegistration'];
+    end;
+
+    // textDocument/inlineValue
+    w := 'params.capabilities.textDocument.inlineValue';
+    LObject := LJson[w].AsObject;
+    if Assigned(LObject) then
+    begin
+      Result.textDocument.inlineValue := TLSPInlineValueClientCapabilities.Create;
+      Result.textDocument.inlineValue.dynamicRegistration := LObject.B['dynamicRegistration'];
+    end;
+
+    // textDocument/inlayHint
+    w := 'params.capabilities.textDocument.inlayHint';
+    LObject := LJson[w].AsObject;
+    if Assigned(LObject) then
+    begin
+      Result.textDocument.inlayHint := TLSPInlayHintClientCapabilities.Create;
+      Result.textDocument.inlayHint.dynamicRegistration := LObject.B['dynamicRegistration'];
+
+      if (LJson[w].AsObject.Expression['resolveSupport'].DataType = dtObject) then
+      begin
+        Result.textDocument.inlayHint.resolveSupport := TLSPResolveSupport.Create;
+        ReadStringArray(w+'.resolveSupport.properties', Result.textDocument.inlayHint.resolveSupport.properties);
+      end;
+    end;
+
+    // textDocument/diagnostic
+    w := 'params.capabilities.textDocument.diagnostic';
+    LObject := LJson[w].AsObject;
+    if Assigned(LObject) then
+    begin
+      Result.textDocument.diagnostic := TLSPDiagnosticClientCapabilities.Create;
+      Result.textDocument.diagnostic.dynamicRegistration := LObject.B['dynamicRegistration'];
+      Result.textDocument.diagnostic.relatedDocumentSupport := LObject.B['relatedDocumentSupport'];
+    end;
+
   end;
 
   // workspace
@@ -4122,6 +5275,27 @@ begin
       Result.workspace.codeLens.refreshSupport := LObject.O['codeLens'].B['refreshSupport'];
     end;
 
+    // workspace/inlineValue
+    if LObject.Expression['inlineValue'].DataType = dtObject then
+    begin
+      Result.workspace.inlineValue := TLSPInlineValueWorkspaceClientCapabilities.Create;
+      Result.workspace.inlineValue.refreshSupport := LObject.O['inlineValue'].B['refreshSupport'];
+    end;
+
+    // workspace/inlayHint
+    if LObject.Expression['inlayHint'].DataType = dtObject then
+    begin
+      Result.workspace.inlayHint := TLSPInlayHintWorkspaceClientCapabilities.Create;
+      Result.workspace.inlayHint.refreshSupport := LObject.O['inlayHint'].B['refreshSupport'];
+    end;
+
+    // workspace/diagnostics
+    if LObject.Expression['diagnostics'].DataType = dtObject then
+    begin
+      Result.workspace.diagnostics := TLSPDiagnosticWorkspaceClientCapabilities.Create;
+      Result.workspace.diagnostics.refreshSupport := LObject.O['diagnostics'].B['refreshSupport'];
+    end;
+
     // workspace/fileOperations
     w := s + '.fileOperations';
     LObject := LJson[w].AsObject;
@@ -4135,6 +5309,20 @@ begin
       Result.workspace.fileOperations.willRename := LObject.B['willRename'];
       Result.workspace.fileOperations.didDelete := LObject.B['didDelete'];
       Result.workspace.fileOperations.willDelete := LObject.B['willDelete'];
+    end;
+  end;
+
+  // noteBook document support
+  s := 'params.capabilities.notebookDocument';
+  LObject := LJson[s].AsObject;
+  if Assigned(LObject) then
+  begin
+    Result.notebookDocument := TLSPNotebookDocumentClientCapabilities.Create;
+    if LObject.Expression['synchronization'].DataType = dtObject then
+    begin
+      Result.notebookDocument.synchronization := TLSPNotebookDocumentSyncClientCapabilities.Create;
+      Result.notebookDocument.synchronization.dynamicRegistration := LObject.O['synchronization'].B['dynamicRegistration'];
+      Result.notebookDocument.synchronization.executionSummarySupport := LObject.O['synchronization'].B['executionSummarySupport'];
     end;
   end;
 
@@ -4179,6 +5367,14 @@ begin
   begin
     Result.general := TLSPGeneralClientCapabilities.Create;
 
+    // general/staleRequestSupport
+    if LObject.Expression['staleRequestSupport'].DataType = dtObject then
+    begin
+      Result.general.staleRequestSupport := TLSPStaleRequestSupportClientCapabilities.Create;
+      Result.general.staleRequestSupport.cancel := LObject.O['staleRequestSupport'].B['cancel'];
+      ReadStringArray(s + '.staleRequestSupport.retryOnContentModified', Result.general.staleRequestSupport.retryOnContentModified);
+    end;
+
     // general/regularExpressions
     if LObject.Expression['regularExpressions'].DataType = dtObject then
     begin
@@ -4193,6 +5389,13 @@ begin
       Result.general.markdown := TLSPMarkdownClientCapabilities.Create;
       Result.general.markdown.parser := LObject.O['markdown'].S['parser'];
       Result.general.markdown.version := LObject.O['markdown'].S['version'];
+      ReadStringArray(s+'.markdown.allowedTags', Result.general.markdown.allowedTags);
+    end;
+
+    // general/positionEncodings
+    if LObject.Expression['positionEncodings'].DataType = dtArray then
+    begin
+      ReadStringArray(s + '.positionEncodings' , Result.general.positionEncodings);
     end;
   end;
 end;
@@ -4203,7 +5406,98 @@ var
   LMember,LMem: IMember;
   LObject,LArrayObj,LArrayObj2: ISuperObject;
   s: string;
+  kind: Integer;
   i,k: Integer;
+
+  procedure ReadRange(var range: TLSPRange; const supObj: ISuperObject);
+  begin
+    range.startPos.line := supObj.O['start'].I['line'];
+    range.startPos.character := supObj.O['start'].I['character'];
+    range.endPos.line := supObj.O['end'].I['line'];
+    range.endPos.character := supObj.O['end'].I['character'];
+  end;
+
+  procedure ReadStringArray(const aArray: ISuperArray; var arr: TArray<string>);
+  var
+    i: Integer;
+    LMem: IMember;
+  begin
+    if (aArray.DataType = dtArray) then
+    begin
+      SetLength(arr,aArray.Length);
+      i := 0;
+      for LMem in aArray do
+      begin
+        if LMem.DataType = dtString then
+        begin
+          arr[i] := LMem.AsString;
+          Inc(i);
+        end;
+      end;
+      if i <> Length(arr) then
+        SetLength(arr, i);
+    end;
+  end;
+
+  procedure ReadWatchers(const aArray: ISuperArray; var arr: TArray<TLSPFileSystemWatcher>);
+  var
+    i: Integer;
+    LMem: IMember;
+    LObject: ISuperObject;
+  begin
+    if (aArray.DataType = dtArray) then
+    begin
+      SetLength(arr,aArray.Length);
+      i := 0;
+      for LMem in aArray do
+      begin
+        if LMem.DataType = dtObject then
+        begin
+          LObject := LMem.AsObject;
+
+          // globPattern = Pattern | RelativePattern
+          if LObject.Expression['globPattern'].DataType = dtObject then
+          begin
+            { globPattern = RelativePattern }
+
+            // baseUri = WorkspaceFolder | URI
+            if LObject.O['globPattern'].Expression['baseUri'].DataType = dtObject then
+            begin
+              // WorkspaceFolder = { uri: string; name: string; }
+              arr[i].globPattern.baseUri.uri := LObject.O['globPattern'].O['baseUri'].S['uri'];
+              arr[i].globPattern.baseUri.name := LObject.O['globPattern'].O['baseUri'].S['name'];
+            end
+            else if LObject.O['globPattern'].Expression['baseUri'].DataType = dtString then
+            begin
+              // URI = string
+              arr[i].globPattern.baseUri.uri := LObject.O['globPattern'].S['baseUri'];
+            end;
+
+            // pattern = string
+            arr[i].globPattern.pattern := LObject.O['globPattern'].S['pattern'];
+          end
+          else if LObject.Expression['globPattern'].DataType = dtString then
+          begin
+            { globPattern = Pattern = string }
+            arr[i].globPattern.pattern := LObject.S['globPattern'];
+          end;
+
+          if LObject.Expression['kind'].DataType = dtInteger then
+          begin
+            { kind = WatchKind = uinteger = 1 | 2 | 4 }
+            arr[i].kind := LObject.I['kind'];
+          end
+          else
+            arr[i].kind := 7;
+
+          Inc(i);
+        end;
+      end;
+      if i <> Length(arr) then
+        SetLength(arr, i);
+    end;
+  end;
+
 begin
   Result := nil;
   
@@ -4223,14 +5517,176 @@ begin
 
     Result[i].id := LArrayObj.S['id'];
     Result[i].method := LArrayObj.S['method'];
+    kind := GetKindFromMethod(Result[i].method);
 
     if LArrayObj.Expression['registerOptions'].DataType = dtObject then
     begin
       LObject := LArrayObj.O['registerOptions'];
-      Result[i].registerOptions := TLSPTextDocumentRegistrationOptions.Create;
-      Result[i].registerOptions.includeText := LObject.B['includeText'];
-      Result[i].registerOptions.syncKind := LObject.I['syncKind'];
-      if LObject.Expression['documentSelector'].DataType = dtArray then
+
+      // Create the correct option object and set options
+      if (kind > -1) and (TLSPKInd(kind) = lspDidChangeTextDocument) then
+      begin
+        // DidChangeTextDocument Notification
+        Result[i].registerOptions := TLSPTextDocumentChangeRegistrationOptions.Create;
+        TLSPTextDocumentChangeRegistrationOptions(Result[i].registerOptions).syncKind := LObject.I['syncKind'];
+      end
+      else if (kind > -1) and (TLSPKInd(kind) = lspDidSaveTextDocument) then
+      begin
+        // DidSaveTextDocument Notification
+        Result[i].registerOptions := TLSPTextDocumentSaveRegistrationOptions.Create;
+        TLSPTextDocumentSaveRegistrationOptions(Result[i].registerOptions).includeText := LObject.B['includeText'];
+      end
+      else if (kind > -1) and (TLSPKInd(kind) = lspDocumentLink) then
+      begin
+        // Document Link Request
+        Result[i].registerOptions := TLSPDocumentLinkRegistrationOptions.Create;
+        TLSPDocumentLinkRegistrationOptions(Result[i].registerOptions).resolveProvider := LObject.B['resolveProvider'];
+      end
+      else if (kind > -1) and (TLSPKInd(kind) = lspCodeLens) then
+      begin
+        // Code Lens Request
+        Result[i].registerOptions := TLSPCodeLensRegistrationOptions.Create;
+        TLSPCodeLensRegistrationOptions(Result[i].registerOptions).resolveProvider := LObject.B['resolveProvider'];
+      end
+      else if (kind > -1) and (TLSPKInd(kind) = lspDocumentSymbol) then
+      begin
+        // Document Symbol Request
+        Result[i].registerOptions := TLSPDocumentSymbolRegistrationOptions.Create;
+        TLSPDocumentSymbolRegistrationOptions(Result[i].registerOptions).slabel := LObject.S['label'];
+      end
+      else if (kind > -1) and (TLSPKInd(kind) in [lspSemanticTokensFull,lspSemanticTokensFullDelta,lspSemanticTokensRange,lspSemanticTokensRefresh]) then
+      begin
+        // Semantic Tokens Request
+        Result[i].registerOptions := TLSPSemanticTokensRegistrationOptions.Create;
+
+        // legend: SemanticTokensLegend;
+        if LObject.Expression['legend'].DataType = dtObject then
+        begin
+          ReadStringArray(LObject.O['legend'].A['tokenTypes'], TLSPSemanticTokensRegistrationOptions(Result[i].registerOptions).legend.tokenTypes);
+          ReadStringArray(LObject.O['legend'].A['tokenModifiers'], TLSPSemanticTokensRegistrationOptions(Result[i].registerOptions).legend.tokenModifiers);
+        end;
+
+        // range?: boolean | { }
+        if LObject.Expression['range'].DataType = dtBoolean then
+        begin
+          TLSPSemanticTokensRegistrationOptions(Result[i].registerOptions).range := LObject.B['range'];
+        end;
+
+        // full?: boolean | { delta?: boolean; };
+        if LObject.Expression['full'].DataType = dtBoolean then
+        begin
+          TLSPSemanticTokensRegistrationOptions(Result[i].registerOptions).full := LObject.B['full'];
+        end
+        else if LObject.Expression['full'].DataType = dtObject then
+        begin
+          TLSPSemanticTokensRegistrationOptions(Result[i].registerOptions).full := True;
+          TLSPSemanticTokensRegistrationOptions(Result[i].registerOptions).delta := LObject.O['full'].B['delta'];
+        end;
+      end
+      else if (kind > -1) and (TLSPKInd(kind) = lspInlayHint) then
+      begin
+        // Inlay Hint Request
+        Result[i].registerOptions := TLSPInlayHintRegistrationOptions.Create;
+        TLSPInlayHintRegistrationOptions(Result[i].registerOptions).resolveProvider := LObject.B['resolveProvider'];
+      end
+      else if (kind > -1) and (TLSPKInd(kind) = lspCompletion) then
+      begin
+        // Completion Request
+        Result[i].registerOptions := TLSPCompletionRegistrationOptions.Create;
+
+        // triggerCharacters?: string[];
+        if LObject.Expression['triggerCharacters'].DataType = dtArray then
+          ReadStringArray(LObject.A['triggerCharacters'], TLSPCompletionRegistrationOptions(Result[i].registerOptions).triggerCharacters);
+
+        // allCommitCharacters?: string[];
+        if LObject.Expression['allCommitCharacters'].DataType = dtArray then
+          ReadStringArray(LObject.A['allCommitCharacters'], TLSPCompletionRegistrationOptions(Result[i].registerOptions).allCommitCharacters);
+
+        // resolveProvider?: boolean;
+        TLSPCompletionRegistrationOptions(Result[i].registerOptions).resolveProvider := LObject.B['resolveProvider'];
+
+        // completionItem?: { labelDetailsSupport?: boolean; }
+        if LObject.Expression['completionItem'].DataType = dtObject then
+          TLSPCompletionRegistrationOptions(Result[i].registerOptions).completionItem.labelDetailsSupport := LObject.O['completionItem'].B['resolveProvider'];
+      end
+      else if (kind > -1) and (TLSPKInd(kind) in [lspDocumentDiagnostic,lspWorkspaceDiagnostic]) then
+      begin
+        // Pull Diagnostics. Document diagnostic and workspace diagnostic Request
+        Result[i].registerOptions := TLSPDiagnosticRegistrationOptions.Create;
+        TLSPDiagnosticRegistrationOptions(Result[i].registerOptions).identifier := LObject.S['identifier'];
+        TLSPDiagnosticRegistrationOptions(Result[i].registerOptions).interFileDependencies := LObject.B['interFileDependencies'];
+        TLSPDiagnosticRegistrationOptions(Result[i].registerOptions).workspaceDiagnostics := LObject.B['workspaceDiagnostics'];
+      end
+      else if (kind > -1) and (TLSPKInd(kind) = lspSignatureHelp) then
+      begin
+        // Signature Help Request
+        Result[i].registerOptions := TLSPSignatureHelpRegistrationOptions.Create;
+
+        // triggerCharacters?: string[];
+        if LObject.Expression['triggerCharacters'].DataType = dtArray then
+          ReadStringArray(LObject.A['triggerCharacters'], TLSPSignatureHelpRegistrationOptions(Result[i].registerOptions).triggerCharacters);
+
+        // retriggerCharacters?: string[];
+        if LObject.Expression['retriggerCharacters'].DataType = dtArray then
+          ReadStringArray(LObject.A['retriggerCharacters'], TLSPSignatureHelpRegistrationOptions(Result[i].registerOptions).retriggerCharacters);
+      end
+      else if (kind > -1) and (TLSPKInd(kind) = lspCodeAction) then
+      begin
+        // Code Action Request
+        Result[i].registerOptions := TLSPCodeActionRegistrationOptions.Create;
+
+        // codeActionKinds?: string[];
+        if LObject.Expression['codeActionKinds'].DataType = dtArray then
+          ReadStringArray(LObject.A['codeActionKinds'], TLSPCodeActionRegistrationOptions(Result[i].registerOptions).codeActionKinds);
+
+        // resolveProvider?: boolean;
+        TLSPCodeActionRegistrationOptions(Result[i].registerOptions).resolveProvider := LObject.B['resolveProvider'];
+      end
+      else if (kind > -1) and (TLSPKInd(kind) = lspDocumentOnTypeFormatting) then
+      begin
+        // Code Action Request
+        Result[i].registerOptions := TLSPDocumentOnTypeFormattingRegistrationOptions.Create;
+
+        // firstTriggerCharacter: string;
+        TLSPDocumentOnTypeFormattingRegistrationOptions(Result[i].registerOptions).firstTriggerCharacter := LObject.S['firstTriggerCharacter'];
+
+        // moreTriggerCharacter?: string[];
+        if LObject.Expression['moreTriggerCharacter'].DataType = dtArray then
+          ReadStringArray(LObject.A['moreTriggerCharacter'], TLSPDocumentOnTypeFormattingRegistrationOptions(Result[i].registerOptions).moreTriggerCharacter);
+      end
+      else if (kind > -1) and (TLSPKInd(kind) = lspRename) then
+      begin
+        // Rename Request
+        Result[i].registerOptions := TLSPRenameRegistrationOptions.Create;
+        TLSPRenameRegistrationOptions(Result[i].registerOptions).prepareProvider := LObject.B['prepareProvider'];
+      end
+      else if (kind > -1) and (TLSPKInd(kind) = lspDidChangeWatchedFiles) then
+      begin
+        // DidChangeWatchedFiles Request
+        Result[i].registerOptions := TLSPDidChangeWatchedFilesRegistrationOptions.Create;
+
+        // Read watcher array
+        if LObject.Expression['watchers'].DataType = dtArray then
+          ReadWatchers(LObject.A['watchers'], TLSPDidChangeWatchedFilesRegistrationOptions(Result[i].registerOptions).watchers);
+      end
+      else if (kind > -1) and (TLSPKInd(kind) = lspWorkspaceExecuteCommand) then
+      begin
+        // Execute a command
+        Result[i].registerOptions := TLSPExecuteCommandRegistrationOptions.Create;
+
+        // commands: string[];
+        if LObject.Expression['commands'].DataType = dtArray then
+          ReadStringArray(LObject.A['commands'], TLSPExecuteCommandRegistrationOptions(Result[i].registerOptions).commands);
+      end
+      else
+      begin
+        // Standard TextDocumentRegistrationOptions is used
+        Result[i].registerOptions := TLSPTextDocumentRegistrationOptions.Create;
+      end;
+
+      // TLSPTextDocumentRegistrationOptions.documentSelector ?
+      if (Result[i].registerOptions is TLSPTextDocumentRegistrationOptions) and
+         (LObject.Expression['documentSelector'].DataType = dtArray) then
       begin
         LArray2 := LObject.A['documentSelector'];
         SetLength(Result[i].registerOptions.documentSelector ,LArray2.Length);
@@ -4246,6 +5702,20 @@ begin
         end;
         if k <> Length(Result[i].registerOptions.documentSelector) then
           SetLength(Result[i].registerOptions.documentSelector, k);
+      end;
+
+      // TLSPTextDocumentRegistrationOptions.id ?
+      if (Result[i].registerOptions is TLSPTextDocumentRegistrationOptions) and
+         (LObject.Expression['id'].DataType = dtString) then
+      begin
+        Result[i].registerOptions.id := LObject.S['id'];
+      end;
+
+      // TLSPTextDocumentRegistrationOptions.workDoneProgress ?
+      if (Result[i].registerOptions is TLSPTextDocumentRegistrationOptions) and
+         (LObject.Expression['workDoneProgress'].DataType = dtBoolean) then
+      begin
+        Result[i].registerOptions.workDoneProgress := LObject.B['workDoneProgress'];
       end;
     end;
     Inc(i);
@@ -4827,6 +6297,110 @@ begin
   Result.activeParameter := LJson[s].AsObject.I['activeParameter'];
 end;
 
+function JsonTypeHierarchySupertypesResponseToObject(const LJson: ISuperObject; var ErrorCode: Integer; var
+    ErrorMessage: string; const path: string = ''): TLSPPrepareTypeHierarchyResponse;
+var
+  LArray: ISuperArray;
+  LMember: IMember;
+  s: string;
+  i: Integer;
+
+  procedure ReadRange(var range: TLSPRange; const member: IMember);
+  var
+    supObj: ISuperObject;
+  begin
+    if member.DataType <> dtObject then Exit;
+    supObj := member.AsObject;
+    range.startPos.line := supObj.O['start'].I['line'];
+    range.startPos.character := supObj.O['start'].I['character'];
+    range.endPos.line := supObj.O['end'].I['line'];
+    range.endPos.character := supObj.O['end'].I['character'];
+  end;
+
+  procedure ReadRangeObj(var range: TLSPRange; const supObj: ISuperObject);
+  begin
+    range.startPos.line := supObj.O['start'].I['line'];
+    range.startPos.character := supObj.O['start'].I['character'];
+    range.endPos.line := supObj.O['end'].I['line'];
+    range.endPos.character := supObj.O['end'].I['character'];
+  end;
+
+  procedure ReadTypeHierarchyItem(var item: TLSPTypeHierarchyItem; const member: IMember);
+  var
+    j: Integer;
+    supObj: ISuperObject;
+    LArr: ISuperArray;
+    LMember: IMember;
+  begin
+    if member.DataType <> dtObject then Exit;
+    supObj := member.AsObject;
+
+    item.name := supObj.S['name'];
+    item.kind := TLSPSymbolKind(supObj.I['kind']);
+    item.detail := supObj.S['detail'];
+    item.uri := supObj.S['uri'];
+
+    // Range
+    if (supObj.Expression['range'].DataType = dtObject) then
+      ReadRangeObj(item.range, supObj.O['range']);
+
+    // Selection Range
+    if (supObj.Expression['selectionRange'].DataType = dtObject) then
+      ReadRangeObj(item.selectionRange, supObj.O['selectionRange']);
+
+    // Tags
+    if (supObj.Expression['tags'].DataType = dtArray) then
+    begin
+      LArr := supObj.A['tags'];
+      SetLength(item.tags, LArr.Length);
+      for j := 0 to LArr.Length - 1 do
+      begin
+        item.tags[j] := LArr.I[j];
+      end;
+    end;
+
+    // data?: LSPAny;
+    if (supObj.Check('data')) then
+    begin
+      if supObj.Expression['data'].DataType = dtObject then
+        item.data := supObj.O['data'].AsJSON
+      else if supObj.Expression['data'].DataType = dtArray then
+        item.data := supObj.A['data'].AsJSON
+      else
+        item.data := supObj.V['data'].AsJSON;
+    end;
+  end;
+begin
+  Result := TLSPPrepareTypeHierarchyResponse.Create;
+  ErrorCode := 0;
+  ErrorMessage := '';
+
+  if path <> '' then
+    s := path
+  else if LJson['result'].DataType <> dtNil then
+    s := 'result'
+  else
+    s := 'partial result';
+
+  // Check for errors
+  if (LJson['error'].DataType = dtObject) and (LJson['error'].AsObject.S['message'] <> '') then
+  begin
+    ErrorCode := LJson['error'].AsObject.I['code'];
+    ErrorMessage := LJson['error'].AsObject.S['message'];
+  end;
+
+  if LJson[s].DataType <> dtArray then Exit;
+
+  LArray := LJson[s].AsArray;
+  SetLength(Result.items, LArray.Length);
+  i := 0;
+  for LMember in LArray do
+  begin
+    ReadTypeHierarchyItem(Result.items[i], LMember);
+    Inc(i);
+  end;
+end;
+
 function JsonUnregisterCapabilitiesToUnregistrations(const LJson: ISuperObject): TArray<TLSPUnregistration>;
 var
   LArray: ISuperArray;
@@ -4835,7 +6409,7 @@ var
   i: Integer;
 begin
   Result := nil;
-  
+
   s := 'params."unregisterations"';
 
   if LJson[s].DataType <> dtArray then Exit;
@@ -5137,6 +6711,217 @@ begin
   end;
 end;
 
+function JsonWorkspaceDiagnosticReportToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage:
+    string; var retriggerRequest: Boolean): TLSPWorkspaceDiagnosticReport;
+var
+  s: string;
+  i: Integer;
+  LObject: ISuperObject;
+  LArray: ISuperArray;
+  LMember: IMember;
+  LReport: TLSPWorkspaceDocumentDiagnosticReport;
+
+  procedure ReadDiagnosticReport(var documentReport: TLSPDocumentDiagnosticReport; const AObject: ISuperObject);
+  var
+    LArray,LArray2,LArray3: ISuperArray;
+    LRange: ISuperObject;
+    LMember,LMem: IMember;
+    LObject,LObj: ISuperObject;
+    i,j,k: Integer;
+  begin
+    // DocumentDiagnosticReportKind = 'full' | 'unchanged';
+    documentReport.kind := AObject.S['kind'];
+
+    // resultId?: string;
+    documentReport.resultId := AObject.S['resultId'];
+
+    // items: Diagnostic[];
+    if AObject.Expression['items'].DataType = dtArray then
+    begin
+      // Array of diagnostic information
+      LArray := AObject.A['items'];
+      SetLength(documentReport.items, LArray.Length);
+      i := 0;
+      for LMember in LArray do
+      begin
+        if LMember.DataType <> dtObject then Continue;
+        LObject := LMember.AsObject;
+
+        // The range at which the message applies.
+        if LObject.Expression['range'].DataType = dtObject then
+        begin
+          LRange := LObject.O['range'];
+          documentReport.items[i].range.startPos.line := LRange.O['start'].I['line'];
+          documentReport.items[i].range.startPos.character := LRange.O['start'].I['character'];
+          documentReport.items[i].range.endPos.line := LRange.O['end'].I['line'];
+          documentReport.items[i].range.endPos.character := LRange.O['end'].I['character'];
+        end;
+
+        // The diagnostic's severity.
+        documentReport.items[i].severity := LObject.I['severity'];
+
+        // The diagnostic's code, which might appear in the user interface.
+        if LObject.Expression['code'].DataType = dtInteger then
+          documentReport.items[i].code := LObject.I['code']
+        else if LObject.Expression['code'].DataType = dtString then
+          documentReport.items[i].code := LObject.S['code'];
+
+        // An optional property to describe the error code
+        if LObject.Expression['codeDescription'].DataType = dtObject then
+          documentReport.items[i].codeDescription.href := LObject.O['codeDescription'].S['href'];
+
+        // A human-readable string describing the source of this diagnostic
+        documentReport.items[i].source := LObject.S['source'];
+
+        // The diagnostic's message.
+        documentReport.items[i].messageString := LObject.S['message'];
+
+        // Additional metadata about the diagnostic.
+        if LObject.Expression['tags'].DataType = dtArray then
+        begin
+          LArray2 := LObject.A['tags'];
+          SetLength(documentReport.items[i].tags, LArray2.Length);
+          for j := 0 to LArray2.Length - 1 do
+          begin
+            documentReport.items[i].tags[j] := LArray2.I[j];
+          end;
+        end;
+
+        // An array of related diagnostic information
+        if LObject.Expression['relatedInformation'].DataType = dtArray then
+        begin
+          LArray3 := LObject.A['relatedInformation'];
+          SetLength(documentReport.items[i].relatedInformation, LArray3.Length);
+          k := 0;
+          for LMem in LArray3 do
+          begin
+            if LMem.DataType <> dtObject then Continue;
+            LObj := LMem.AsObject;
+            if LObj.Expression['location'].DataType = dtObject then
+            begin
+              documentReport.items[i].relatedInformation[k].location.uri := LObj.O['location'].S['uri'];
+
+              // The location of this related diagnostic information.
+              if LObj.O['location'].Expression['range'].DataType = dtArray then
+              LRange := LObj.O['location'].O['range'];
+              documentReport.items[i].relatedInformation[k].location.range.startPos.line := LRange.O['start'].I['line'];
+              documentReport.items[i].relatedInformation[k].location.range.startPos.character := LRange.O['start'].I['character'];
+              documentReport.items[i].relatedInformation[k].location.range.endPos.line := LRange.O['end'].I['line'];
+              documentReport.items[i].relatedInformation[k].location.range.endPos.character := LRange.O['end'].I['character'];
+            end;
+
+            // The message of this related diagnostic information.
+            documentReport.items[i].relatedInformation[k].messageString := LObj.S['messageString'];
+            Inc(k);
+          end;
+          if k <> Length(documentReport.items[i].relatedInformation) then
+            SetLength(documentReport.items[i].relatedInformation, k);
+        end;
+
+        // Data (any)
+        if (LObject.Check('data')) then
+        begin
+          if LObject.Expression['data'].DataType = dtObject then
+            documentReport.items[i].data := LObject.O['data'].AsJSON
+          else if LObject.Expression['data'].DataType = dtArray then
+            documentReport.items[i].data := LObject.A['data'].AsJSON
+          else
+            documentReport.items[i].data := LObject.V['data'].AsJSON;
+        end;
+        Inc(i);
+      end;
+      if i <> Length(documentReport.items) then
+        SetLength(documentReport.items, i);
+    end;
+  end;
+begin
+  Result := TLSPWorkspaceDiagnosticReport.Create;
+
+  s := 'result';
+
+  // Check for errors
+  if (LJson['error'].DataType = dtObject) and (LJson['error'].AsObject.S['message'] <> '') then
+  begin
+    ErrorCode := LJson['error'].AsObject.I['code'];
+    ErrorMessage := LJson['error'].AsObject.S['message'];
+    if ErrorCode = Integer(TLSPErrorCodes.ServerCancelled) then
+    begin
+      retriggerRequest := true;
+      if (LJson[s].DataType = dtObject) and (LJson[s].AsObject.Expression['retriggerRequest'].DataType = dtBoolean) then
+        retriggerRequest := LJson[s].AsObject.B['retriggerRequest'];
+    end;
+  end;
+
+  if LJson[s].DataType = dtObject then
+  begin
+    // items: WorkspaceDocumentDiagnosticReport[];
+    if LJson[s].AsObject.Expression['items'].DataType = dtArray then
+    begin
+      LArray := LJson[s].AsObject.A['items'];
+      SetLength(Result.items, LArray.Length);
+
+      i := 0;
+      for LMember in LArray do
+      begin
+        if LMember.DataType <> dtObject then Continue;
+        LObject := LMember.AsObject;
+        LReport := TLSPWorkspaceDocumentDiagnosticReport.Create;
+
+        // Read diagnostic report
+        ReadDiagnosticReport(TLSPDocumentDiagnosticReport(LReport), LObject);
+
+        // uri: DocumentUri
+        LReport.uri := LObject.S['uri'];
+
+        // version: integer | null
+        LReport.version := LObject.I['version'];
+      end;
+    end;
+  end;
+
+  // See if we have partial results.
+  s := 'partial result';
+  if LJson[s].DataType = dtObject then
+  begin
+    // items: WorkspaceDocumentDiagnosticReport[];
+    if LJson[s].AsObject.Expression['items'].DataType = dtArray then
+    begin
+      LArray := LJson[s].AsObject.A['items'];
+      SetLength(Result.items, LArray.Length);
+
+      i := 0;
+      for LMember in LArray do
+      begin
+        if LMember.DataType <> dtObject then Continue;
+        LObject := LMember.AsObject;
+        LReport := TLSPWorkspaceDocumentDiagnosticReport.Create;
+
+        // Read diagnostic report
+        ReadDiagnosticReport(TLSPDocumentDiagnosticReport(LReport), LObject);
+
+        // uri: DocumentUri
+        LReport.uri := LObject.S['uri'];
+
+        // version: integer | null
+        LReport.version := LObject.I['version'];
+      end;
+    end;
+  end;
+end;
+
+procedure JsonWorkspaceDiagnosticRefreshToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string);
+begin
+  ErrorCode := 0;
+  ErrorMessage := '';
+
+  // Check for errors
+  if (LJson['error'].DataType = dtObject) and (LJson['error'].AsObject.S['message'] <> '') then
+  begin
+    ErrorCode := LJson['error'].AsObject.I['code'];
+    ErrorMessage := LJson['error'].AsObject.S['message'];
+  end;
+end;
+
 function JsonWorkspaceSymbolResultToObject(const LJson: ISuperObject; var ErrorCode: Integer; var ErrorMessage: string;
     const path: string = ''): TLSPSymbolInformations;
 var
@@ -5188,6 +6973,7 @@ begin
       Result[i].location.uri := LObject.O['location'].S['uri'];
       if LObject.O['location'].Expression['range'].DataType = dtObject then
       begin
+        // The range can be omitted since 3.17.0
         LRange := LObject.O['location'].O['range'];
         Result[i].location.range.startPos.line := LRange.O['start'].I['line'];
         Result[i].location.range.startPos.character := LRange.O['start'].I['character'];
@@ -5202,6 +6988,18 @@ begin
       SetLength(Result[i].tags, LArrayTags.Length);
       for j := 0 to LArrayTags.Length - 1 do
         Result[i].tags[j] := LArrayTags.I[i];
+    end;
+
+    // Data: A data entry field that is preserved on a workspace symbol between a workspace symbol
+    // request and a workspace symbol resolve request.
+    if LObject.Check('data') then
+    begin
+      if LObject.Expression['data'].DataType = dtObject then
+        Result[i].data := LObject.O['data'].AsJSON
+      else if LObject.Expression['data'].DataType = dtArray then
+        Result[i].data := LObject.A['data'].AsJSON
+      else
+        Result[i].data := LObject.V['data'];
     end;
     Inc(i);
   end;
@@ -5324,12 +7122,27 @@ begin
     lspPrepareCallHierarchy:          Result := TLSPCallHierarchyPrepareParams(lspMsg.paramObj).AsJSON;
     lspCallHierarchyIncommingCalls:   Result := TLSPCallHierarchyIncomingCallsParams(lspMsg.paramObj).AsJSON;
     lspCallHierarchyOutgoingCalls:    Result := TLSPCallHierarchyOutgoingCallsParams(lspMsg.paramObj).AsJSON;
+    lspPrepareTypeHierarchy:          Result := TLSPTypeHierarchyPrepareParams(lspMsg.paramObj).AsJSON;
+    lspTypeHierarchySupertypes:       Result := TLSPTypeHierarchySupertypesParams(lspMsg.paramObj).AsJSON;
+    lspTypeHierarchySubtypes:         Result := TLSPTypeHierarchySubtypesParams(lspMsg.paramObj).AsJSON;
     lspSemanticTokensFull:            Result := TLSPSemanticTokensParams(lspMsg.paramObj).AsJSON;
     lspSemanticTokensFullDelta:       Result := TLSPSemanticTokensDeltaParams(lspMsg.paramObj).AsJSON;
     lspSemanticTokensRange:           Result := TLSPSemanticTokensRangeParams(lspMsg.paramObj).AsJSON;
     lspSemanticTokensRefresh:         Result := '';
     lspLinkedEditingRange:            Result := TLSPLinkedEditingRangeParams(lspMsg.paramObj).AsJSON;
     lspMoniker:                       Result := TLSPMonikerParams(lspMsg.paramObj).AsJSON;
+    lspInlayHint:                     Result := TLSPInlayHintParams(lspMsg.paramObj).AsJSON;
+    lspInlayHintResolve:              Result := LSPInlayHintResolveParamsToJSON(TLSPInlayHint(lspMsg.paramObj));
+    lspInlayHintRefresh:              Result := '';
+    lspInlineValue:                   Result := TLSPInlineValueParams(lspMsg.paramObj).AsJSON;
+    lspInlineValueRefresh:            Result := '';
+    lspDocumentDiagnostic:            Result := TLSPDocumentDiagnosticParams(lspMsg.paramObj).AsJSON;
+    lspWorkspaceDiagnostic:           Result := TLSPWorkspaceDiagnosticParams(lspMsg.paramObj).AsJSON;
+    lspWorkspaceDiagnosticRefresh:    Result := '';
+    lspDidOpenNotebookDocument:       Result := LSPOpenNotebookDocumentParamsToJSON(TLSPDidOpenNotebookDocumentParams(lspMsg.paramObj));
+    lspDidChangeNotebookDocument:     Result := LSPChangeNotebookDocumentParamsToJSON(TLSPDidChangeNotebookDocumentParams(lspMsg.paramObj));
+    lspDidCloseNotebookDocument:      Result := TLSPDidCloseNotebookDocumentParams(lspMsg.paramObj).AsJSON;
+    lspDidSaveNotebookDocument:       Result := TLSPDidSaveNotebookDocumentParams(lspMsg.paramObj).AsJSON;
     lspProgress:                      Result := TLSPProgressParams(lspMsg.paramObj).AsJSON;
     lspLogTrace:                      Result := TLSPLogTraceParams(lspMsg.paramObj).AsJSON;
     lspSetTrace:                      Result := TLSPSetTraceParams(lspMsg.paramObj).AsJSON;
