@@ -235,8 +235,8 @@ type
     procedure OnWriteToServer(Sender: TObject; var s: RawByteString);
     function ProcessServerMessage(const LJson: ISuperObject): Boolean;
     procedure RegisterPartialResultToken(const lspKind: TLSPKind; const token: string);
-    procedure RunServer(const ACommandline, ADir: String; const AHost: string = ''; const APort: Integer = 0; const
-        AUseSocket: Boolean = False);
+    procedure RunServer(const ACommandline, ADir: String; const AEnvList: string = ''; const AHost: string = ''; const
+        APort: Integer = 0; const AUseSocket: Boolean = False);
     function GetRunTimeInSeconds: Double;
     function GetSyncKind: Integer;
     function IncludeText(const lspKind: TLSPKind; const filename: string; const includeDefault: Boolean): Boolean;
@@ -1907,10 +1907,10 @@ begin
   FPartialTokens.Add(token + '=' + IntToStr(n));
 end;
 
-procedure TLSPClient.RunServer(const ACommandline, ADir: String; const AHost: string = ''; const APort: Integer = 0;
-    const AUseSocket: Boolean = False);
+procedure TLSPClient.RunServer(const ACommandline, ADir: String; const AEnvList: string = ''; const AHost: string = '';
+    const APort: Integer = 0; const AUseSocket: Boolean = False);
 begin
-  FServerThread := TLSPExecuteServerThread.Create(ACommandline, ADir);
+  FServerThread := TLSPExecuteServerThread.Create(ACommandline, ADir, AEnvList);
   FServerThread.UseSocket := AUseSocket;
   FServerThread.Host := AHost;
   FServerThread.Port := APort;

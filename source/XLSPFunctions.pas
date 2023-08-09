@@ -7201,11 +7201,9 @@ var
   sResult,sError: string;
   sId: string;
   sMethod: string;
-  bVoid: Boolean;
 begin
   sError := '';
-  bVoid := False;
-
+  
   // Get id
   nId := Ord(lspMsg.id);
   sId := IntToStr(nId);
@@ -7224,7 +7222,7 @@ begin
   if resultType = lsprNull then
     sResult := 'null'
   else if resultType = lsprVoid then
-    bVoid := True
+    sResult := 'void'
   else if resultType = lsprEmptyArray then
     sResult := '[]'
   else if resultType = lsprString then
@@ -7239,10 +7237,7 @@ begin
     sError := TLSPResponseError(lspMsg.errorObj).AsJSON;
 
   // Create the request and insert params
-  if bVoid then
-    s := '{"jsonrpc": "2.0","id": ' + sId + ',"method": ' + sMethod
-  else
-    s := '{"jsonrpc": "2.0","id": ' + sId + ',"method": ' + sMethod + ',"result": ' + sResult;
+  s := '{"jsonrpc": "2.0","id": ' + sId + ',"method": ' + sMethod + ',"result": ' + sResult;
 
   if sError <> '' then
     s := s + ',"error: ' + sError;
