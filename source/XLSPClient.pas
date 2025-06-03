@@ -18,7 +18,7 @@
  *
  * Changes by PyScripter (https://github.com/pyscripter)
  *  - Replaced XSuperObject with System.JSON and System.JSONSerializers
- *  - Remove Indy dependency (was not working anyway). Use System.Net.Socket instead.
+ *  - Removed Indy dependency (was not working anyway). Use System.Net.Socket instead.
  *  - Fixed warnings and hints
  *  - Fixed numerous memory leaks
  *  - Improvements to XLSPExecute
@@ -48,6 +48,7 @@
  *        Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
  *      end, 400) then
  *        Memo1.Lines.Add(TSerializer.Serialize(Item));
+ *  - The code base was enormously streamlined (e.g. XSLPFunction down to 1400 from 7000+ lines)
  *  - Removed unnecessary aliases in XLSPTypes
  *  - Refactored error handling in XLSP functions
  *  - Unique request id passed to the request handlers

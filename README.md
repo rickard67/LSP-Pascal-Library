@@ -39,6 +39,7 @@ A language server protocal client written in Pascal (Delphi).
       end, 400) then
         Memo1.Lines.Add(TSerializer.Serialize(Item));
     ```
+ *  The code base was enormously streamlined. (e.g. XSLPFunction down to 1400 from 7000+ lines)
  *  Removed unnecessary aliases in XLSPTypes
  *  Refactored error handling in XLSP functions
  *  Separated the handling of requests, notifications and responses
