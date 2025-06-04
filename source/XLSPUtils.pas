@@ -30,6 +30,7 @@ type
   TSerializeOptions = set of TSerializeOption;
 
 {$REGION 'Helper classes'}
+  // (De)Serialization of Delphi objects and their members
   TJSONObjectHelper = class helper for TObject
   public
     function AsJSON(Options: TSerializeOptions = []): string;
@@ -43,7 +44,10 @@ type
 {$ENDREGION 'Helper classes'}
 
 {$REGION 'TSerializer'}
-
+  // Wraps TJsonSerializer for ease of use.
+  // Includes the handling of Variant fileds
+  // Ensures proper handling of Raw Json fields
+  // TODO: Add TSerializeOptions to Serialize
   TSerializer = class
     class function Serialize<T>(const AValue: T): string; overload;
     class function Deserialize<T>(const AJson: string): T; overload;
@@ -123,6 +127,7 @@ type
 function CompiledRegEx(Expr: string; Options: TRegExOptions = [roNotEmpty];
   UCP: Boolean = True): TRegEx;
 
+// Helper routine to create asynchronous pipes.  From Jcl JclSysUtils
 function CreateAsyncPipe(var hReadPipe, hWritePipe: THandle;
   lpPipeAttributes: PSecurityAttributes; nSize: DWORD): BOOL;
 
@@ -180,7 +185,6 @@ var
 
 function CreateAsyncPipe(var hReadPipe, hWritePipe: THandle;
   lpPipeAttributes: PSecurityAttributes; nSize: DWORD): BOOL;
-// From Jcl JclSysUtils
 var
   Error: DWORD;
   PipeReadHandle, PipeWriteHandle: THandle;
