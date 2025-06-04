@@ -93,11 +93,18 @@ const
   ContentHeaderRE = '^(?:[^\r\n]+\r\n)*' +
                     'Content-Length:\s*(?P<length>\d+)\r\n' +
                     '(?:[^\r\n]+\r\n)*\r\n';
+var
+  Path: array[0..MAX_PATH] of WideChar;
 begin
   inherited Create(True);
   FUseSocket := False;
-  FCommandline := ACommandline;
-  FDir := ADir;
+  ExpandEnvironmentStringsW(PWideChar(ACommandline), @Path, MAX_PATH);
+  FCommandline := Path;
+  if ADir <> '' then
+  begin
+    ExpandEnvironmentStringsW(PWideChar(ADir), @Path, MAX_PATH);
+    FDir := Path;
+  end;
   Priority := tpNormal;
   FWriteLock.Initialize;
   FWriteEvent := TSimpleEvent.Create(nil, False, False, '');
@@ -267,6 +274,7 @@ begin
     UniqueString(FDir);
 
     // Run LSP server
+    SetCurrentDir(FDir);
     if not CreateProcess(nil, PChar(FCommandline), nil, nil, True,
       NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, nil, PChar(FDir),
       StartupInfo, FProcessInformation)
@@ -489,4 +497,6 @@ begin
   inherited;
 end;
 
+initialization
+  ReportMemoryLeaksOnShutdown := True;
 end.

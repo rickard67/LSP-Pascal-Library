@@ -5239,7 +5239,7 @@ type
     options: TLSPFormattingOptions;
   end;
 
-  TLSPTextEditValues = class(TLSPBaseResult)
+  TLSPTextEditResult = class(TLSPBaseResult)
   public
     edits: TArray<TLSPAnnotatedTextEdit>;
   end;

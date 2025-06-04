@@ -66,7 +66,7 @@ function JsonDocumentColorResultToObject(const ResultJson: TJSONValue):
 function JsonDocumentDiagnosticReportToObject(const ResultJson: TJSONValue):
     TLSPRelatedDocumentDiagnosticReport;
 function JsonDocumentFormattingResultToObject(const ResultJson: TJSONValue):
-    TLSPTextEditValues;
+    TLSPTextEditResult;
 function JsonDocumentHighlightResponseToObject(const ResultJson: TJSONValue):
     TLSPDocumentHighlightResult;
 function JsonDocumentSymbolsResultToObject(const ResultJson: TJSONValue):
@@ -424,9 +424,9 @@ begin
     Result.FromJSON(TJSONObject(ResultJson));
 end;
 
-function JsonDocumentFormattingResultToObject(const ResultJson: TJSONValue): TLSPTextEditValues;
+function JsonDocumentFormattingResultToObject(const ResultJson: TJSONValue): TLSPTextEditResult;
 begin
-  Result := TLSPTextEditValues.Create;
+  Result := TLSPTextEditResult.Create;
 
   if ResultJson is TJsonArray then
     Result.MemberFromJsonValue('edits', ResultJson);
@@ -533,7 +533,7 @@ begin
       TSerializer.Deserialize<TArray<TLSPMarkedString>>(Contents)
   else if Contents is TJSONObject then
   begin
-    if Contents.GetValue<string>('language') <> '' then
+    if Contents.GetValue<string>('language', '') <> '' then
       // MarkedString = language-value pair
       Result.MemberFromJsonValue('contentsMarked', Contents)
     else

@@ -24,7 +24,7 @@
  *  - Improvements to XLSPExecute
  *    - Asynchronous reading
  *    - Avoid calling Synchronize and Sleep
- *  - Allow for Handling server responses with anonymous method handlers.
+ *  - Allow for handling server responses with anonymous methods.
  *    The handler is executed in the main thread.
  *    Example:
  *      FLSPClient.SendRequest(lspCompletionItemResolve, ResolveParams,
@@ -85,9 +85,9 @@ type
   TOnConfigurationRequestEvent = procedure(Sender: TObject; const values: TLSPConfigurationParams; var AJsonResult: string; var errorCode: Integer; var errorMessage: string) of object;
   TOnDocumentColorEvent = procedure(Sender: TObject; const Id: Integer; const values: TLSPColorInformationResult) of object;
   TOnDocumentDiagnosticEvent = procedure(Sender: TObject; const Id: Integer; const kind: string; const resultId: string; const items: TArray<TLSPDiagnostic>) of object;
-  TOnDocumentFormattingEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPTextEditValues) of object;
-  TOnDocumentOnTypeFormattingEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPTextEditValues) of object;
-  TOnDocumentRangeFormattingEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPTextEditValues) of object;
+  TOnDocumentFormattingEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPTextEditResult) of object;
+  TOnDocumentOnTypeFormattingEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPTextEditResult) of object;
+  TOnDocumentRangeFormattingEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPTextEditResult) of object;
   TOnDocumentHighlightEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPDocumentHighlightResult) of object;
   TOnDocumentLinkEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPDocumentLinkResult) of object;
   TOnDocumentLinkResolveEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPDocumentLinkResolveResult) of object;
@@ -1387,7 +1387,7 @@ begin
       if Assigned(FOnDocumentFormatting) then
       begin
         ResultObj := TSmartPtr.Make(JsonDocumentFormattingResultToObject(ResultJson))();
-        FOnDocumentFormatting(Self, Id, TLSPTextEditValues(ResultObj));
+        FOnDocumentFormatting(Self, Id, TLSPTextEditResult(ResultObj));
       end;
 
     // A document range formatting request was sent to the server. An event is triggered when the server responds.
@@ -1395,7 +1395,7 @@ begin
       if Assigned(FOnDocumentRangeFormatting) then
       begin
         ResultObj := TSmartPtr.Make(JsonDocumentFormattingResultToObject(ResultJson))();
-        FOnDocumentRangeFormatting(Self, Id, TLSPTextEditValues(ResultObj));
+        FOnDocumentRangeFormatting(Self, Id, TLSPTextEditResult(ResultObj));
       end;
 
     // A document on type formatting request was sent to the server. An event is triggered when the server responds.
@@ -1403,7 +1403,7 @@ begin
       if Assigned(FOnDocumentOnTypeFormatting) then
       begin
         ResultObj := TSmartPtr.Make(JsonDocumentFormattingResultToObject(ResultJson))();
-        FOnDocumentOnTypeFormatting(Self, Id, TLSPTextEditValues(ResultObj));
+        FOnDocumentOnTypeFormatting(Self, Id, TLSPTextEditResult(ResultObj));
       end;
 
     // A document highlight request was sent to the server. An event is triggered when the server responds.
@@ -1802,7 +1802,7 @@ begin
   end;
 end;
 
-procedure TLSPClient.RunServer(const ACommandline, ADir: String; const AEnvList: string = ''; const AHost: string = '';
+procedure TLSPClient.RunServer(const ACommandline, ADir: string; const AEnvList: string = ''; const AHost: string = '';
     const APort: Integer = 0; const AUseSocket: Boolean = False);
 begin
   FServerThread := TLSPExecuteServerThread.Create(ACommandline, ADir);

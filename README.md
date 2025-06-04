@@ -11,7 +11,7 @@ A language server protocal client written in Pascal (Delphi).
    *  Improvements to XLSPExecute
       - Asynchronous reading
       - Avoid calling Synchronize and Sleep
- *  Allow for Handling server responses with anonymous method handlers.
+ *  Allow for handling server responses with anonymous methods.
      The handler is executed in the main thread.  
      Example:
      ```pascal
@@ -204,9 +204,12 @@ request that is sent to the server.
 The function is declared as:
 
 ```pascal
-procedure TLSPClient.SendRequest(const lspKind: TLSPKind; const method: string = ''; 
-    const params: TLSPBaseParams = nil; const paramJSON: string = '');
+function TLSPClient.SendRequest(const lspKind: TLSPKind;
+  const method: string = ''; params: TLSPBaseParams = nil;
+  const paramJSON: string = ''): Integer;
 ```
+The return value is a unique id you can use to keep track of the request,
+in case ther are multiple outstanding requests of the same type.
 
 ### RequestErrorHandling
 
