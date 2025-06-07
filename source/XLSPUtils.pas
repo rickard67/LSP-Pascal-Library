@@ -52,6 +52,8 @@ type
     class function Serialize<T>(const AValue: T): string; overload;
     class function Deserialize<T>(const AJson: string): T; overload;
     class function Deserialize<T>(AJsonValue: TJSONValue): T; overload;
+    class procedure Populate<T>(const AJson: string; var AValue: T); overload;
+    class procedure Populate<T>(AJsonValue: TJSONValue; var AValue: T); overload;
   end;
 
 {$ENDREGION 'TSerializer'}
@@ -479,6 +481,28 @@ begin
   Serializer := TSmartPtr.Make(TJsonSerializer.Create)();
   Serializer.Converters.Add(JsonVariantConverter);
   Result := Serializer.Deserialize<T>(Reader);
+end;
+
+class procedure TSerializer.Populate<T>(AJsonValue: TJSONValue; var AValue: T);
+var
+  Serializer: TJsonSerializer;
+  Reader: TJsonObjectReader;
+  JsonVariantConverter: TJsonVariantConverter;
+begin
+  Reader := TSmartPtr.Make(TJsonObjectReader.Create(AJsonValue))();
+  JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
+  Serializer := TSmartPtr.Make(TJsonSerializer.Create)();
+  Serializer.Converters.Add(JsonVariantConverter);
+  Serializer.Populate<T>(Reader, AValue);
+end;
+
+class procedure TSerializer.Populate<T>(const AJson: string; var AValue: T);
+var
+  JsonValue: TJSONValue;
+begin
+  JsonValue := TSmartPtr.Make(TJSONValue.ParseJSONValue(
+    TEncoding.UTF8.GetBytes(AJson), 0))();
+  TSerializer.Deserialize<T>(JsonValue);
 end;
 
 class function TSerializer.Serialize<T>(const AValue: T): string;

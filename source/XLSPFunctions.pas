@@ -519,6 +519,8 @@ end;
 function JsonHoverResultToObject(const ResultJson: TJSONValue): TLSPHoverResult;
 var
   Contents: TJsonValue;
+  ContentsArray: TJsonArray;
+  Index: Integer;
 begin
   Result := TLSPHoverResult.Create;
 
@@ -529,8 +531,18 @@ begin
   Contents := ResultJson.FindValue('contents');
 
   if Contents is TJSONArray then
-    Result.contentsMarkedArray :=
-      TSerializer.Deserialize<TArray<TLSPMarkedString>>(Contents)
+  begin
+    ContentsArray := TJSONArray(Contents);
+    SetLength(Result.contentsMarkedArray, ContentsArray.Count);
+    for Index := 0 to TJSONArray(Contents).Count - 1 do
+    begin
+      if ContentsArray[Index] is TJSONString then
+        Result.contentsMarkedArray[Index].value := ContentsArray[Index].Value
+      else
+        Result.contentsMarkedArray[Index] :=
+          TSerializer.Deserialize<TLSPMarkedString>(ContentsArray[Index]);
+    end;
+  end
   else if Contents is TJSONObject then
   begin
     if Contents.GetValue<string>('language', '') <> '' then
