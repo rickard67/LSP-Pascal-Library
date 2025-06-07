@@ -464,6 +464,8 @@ class function TSerializer.Deserialize<T>(const AJson: string): T;
 var
   JsonValue: TJSONValue;
 begin
+  if AJson = '' then Exit(Default(T));
+
   JsonValue := TSmartPtr.Make(TJSONValue.ParseJSONValue(
     TEncoding.UTF8.GetBytes(AJson), 0))();
   Result := TSerializer.Deserialize<T>(JsonValue);
@@ -476,6 +478,8 @@ var
   Reader: TJsonObjectReader;
   JsonVariantConverter: TJsonVariantConverter;
 begin
+  if not Assigned(AJsonValue) then Exit(Default(T));
+
   Reader := TSmartPtr.Make(TJsonObjectReader.Create(AJsonValue))();
   JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
   Serializer := TSmartPtr.Make(TJsonSerializer.Create)();
@@ -489,6 +493,8 @@ var
   Reader: TJsonObjectReader;
   JsonVariantConverter: TJsonVariantConverter;
 begin
+  if not Assigned(AJsonValue) then Exit;
+
   Reader := TSmartPtr.Make(TJsonObjectReader.Create(AJsonValue))();
   JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
   Serializer := TSmartPtr.Make(TJsonSerializer.Create)();
@@ -500,6 +506,8 @@ class procedure TSerializer.Populate<T>(const AJson: string; var AValue: T);
 var
   JsonValue: TJSONValue;
 begin
+  if AJson = '' then Exit;
+
   JsonValue := TSmartPtr.Make(TJSONValue.ParseJSONValue(
     TEncoding.UTF8.GetBytes(AJson), 0))();
   TSerializer.Deserialize<T>(JsonValue);

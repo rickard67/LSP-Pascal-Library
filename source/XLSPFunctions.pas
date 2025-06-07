@@ -526,7 +526,7 @@ begin
 
   if not (ResultJson is TJSONObject) then Exit;
 
-  Result.MemberFromJsonValue('range', ResultJson.FindValue('ramge'));
+  Result.range := TSerializer.Deserialize<TLSPRange>(ResultJson.FindValue('range'));
 
   Contents := ResultJson.FindValue('contents');
 
