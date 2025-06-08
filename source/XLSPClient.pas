@@ -302,6 +302,7 @@ type
     // paramJson: if present takes precedence over params
     function SendRequest(const lspKind: TLSPKind; const method: string = '';
         params: TLSPBaseParams = nil; const paramJSON: string = ''): Integer; overload;
+    function SendRequest(const lspKind: TLSPKind; params: TLSPBaseParams): Integer; overload;
     // SemdRequest overload to handle responses by a provided handler
     // which can be an anonymous method, instead of the component events
     // The handler is executed in the main thread.
@@ -2246,6 +2247,12 @@ function TLSPClient.SendRequest(const lspKind: TLSPKind;
 begin
   Result := SendRequest(lspKind, '', params);
   FHandlerDict.AddOrSetValue(Result, Handler);
+end;
+
+function TLSPClient.SendRequest(const lspKind: TLSPKind;
+  params: TLSPBaseParams): Integer;
+begin
+  Result := SendRequest(lspKind, '', params);
 end;
 
 procedure TLSPClient.SendResponse(const id: Variant; params:
