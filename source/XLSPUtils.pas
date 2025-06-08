@@ -123,6 +123,20 @@ type
     function ReadJson(const AReader: TJsonReader; ATypeInf: PTypeInfo; const AExistingValue: TValue;
       const ASerializer: TJsonSerializer): TValue; override;
   end;
+
+  // BugFix for Delphi 11 or earlier
+  {$IF CompilerVersion < 36}
+  TJsonIntegerConverter  = class(TJsonConverter)
+  public
+    function CanWrite: Boolean; override;
+    function CanConvert(ATypeInfo: PTypeInfo): Boolean; override;
+    function ReadJson(const AReader: TJsonReader; ATypeInfo: PTypeInfo;
+      const AExistingValue: TValue; const ASerializer: TJsonSerializer): TValue; override;
+    procedure WriteJson(const AWriter: TJsonWriter; const AValue: TValue;
+      const ASerializer: TJsonSerializer); override;
+  end;
+  {$ENDIF}
+
 {$ENDREGION 'Converters'}
 
 
@@ -390,6 +404,9 @@ var
   Reader: TJsonObjectReader;
   JsonSerializer: TJsonSerializer;
   JsonVariantConverter: TJsonVariantConverter;
+  {$IF CompilerVersion < 36}
+  JsonIntegerConverter: TJsonIntegerConverter;
+  {$ENDIF}
 begin
   if not Assigned(AJsonObject) then Exit;
 
@@ -397,6 +414,10 @@ begin
   JsonSerializer := TSmartPtr.Make(TJsonSerializer.Create)();
   JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
   JsonSerializer.Converters.Add(JsonVariantConverter);
+  {$IF CompilerVersion < 36}
+  JsonIntegerConverter := TSmartPtr.Make(TJsonIntegerConverter.Create)();
+  JsonSerializer.Converters.Add(JsonIntegerConverter);
+  {$ENDIF}
   JsonSerializer.Populate(Reader, Self);
 end;
 
@@ -477,13 +498,20 @@ var
   Serializer: TJsonSerializer;
   Reader: TJsonObjectReader;
   JsonVariantConverter: TJsonVariantConverter;
+  {$IF CompilerVersion < 36}
+  JsonIntegerConverter: TJsonIntegerConverter;
+  {$ENDIF}
 begin
   if not Assigned(AJsonValue) then Exit(Default(T));
 
   Reader := TSmartPtr.Make(TJsonObjectReader.Create(AJsonValue))();
-  JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
   Serializer := TSmartPtr.Make(TJsonSerializer.Create)();
+  JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
   Serializer.Converters.Add(JsonVariantConverter);
+  {$IF CompilerVersion < 36}
+  JsonIntegerConverter := TSmartPtr.Make(TJsonIntegerConverter.Create)();
+  Serializer.Converters.Add(JsonIntegerConverter);
+  {$ENDIF}
   Result := Serializer.Deserialize<T>(Reader);
 end;
 
@@ -492,13 +520,20 @@ var
   Serializer: TJsonSerializer;
   Reader: TJsonObjectReader;
   JsonVariantConverter: TJsonVariantConverter;
+  {$IF CompilerVersion < 36}
+  JsonIntegerConverter: TJsonIntegerConverter;
+  {$ENDIF}
 begin
   if not Assigned(AJsonValue) then Exit;
 
   Reader := TSmartPtr.Make(TJsonObjectReader.Create(AJsonValue))();
-  JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
   Serializer := TSmartPtr.Make(TJsonSerializer.Create)();
+  JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
   Serializer.Converters.Add(JsonVariantConverter);
+  {$IF CompilerVersion < 36}
+  JsonIntegerConverter := TSmartPtr.Make(TJsonIntegerConverter.Create)();
+  Serializer.Converters.Add(JsonIntegerConverter);
+  {$ENDIF}
   Serializer.Populate<T>(Reader, AValue);
 end;
 
@@ -510,7 +545,7 @@ begin
 
   JsonValue := TSmartPtr.Make(TJSONValue.ParseJSONValue(
     TEncoding.UTF8.GetBytes(AJson), 0))();
-  TSerializer.Deserialize<T>(JsonValue);
+  TSerializer.Populate<T>(JsonValue, AValue);
 end;
 
 class function TSerializer.Serialize<T>(const AValue: T): string;
@@ -682,7 +717,38 @@ begin
   end;
 end;
 
+{ TJsonIntegerConverter }
+
+{$IF CompilerVersion < 36}
+function TJsonIntegerConverter.CanConvert(ATypeInfo: PTypeInfo): Boolean;
+begin
+  Result := ATypeInfo.Kind = tkInteger;
+end;
+
+function TJsonIntegerConverter.CanWrite: Boolean;
+begin
+  Result := False;
+end;
+
+function TJsonIntegerConverter.ReadJson(const AReader: TJsonReader;
+  ATypeInfo: PTypeInfo; const AExistingValue: TValue;
+  const ASerializer: TJsonSerializer): TValue;
+begin
+  if AReader.TokenType = TJsonToken.Float then
+    Result := Trunc(AReader.Value.AsExtended)
+  else
+    Result := AReader.Value;
+end;
+
+procedure TJsonIntegerConverter.WriteJson(const AWriter: TJsonWriter;
+  const AValue: TValue; const ASerializer: TJsonSerializer);
+begin
+  raise EJsonWriterException.Create('TJsonIntegerConverter does not support writing');
+end;
+{$ENDIF}
+
 {$ENDREGION 'Json Converters'}
+
 
 initialization
   // Initialize RTTI context and keep the Rtti Pool alive
