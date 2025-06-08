@@ -462,7 +462,7 @@ type
     location: TLSPLocation;
 
     // The message of this related diagnostic information.
-    messageString: string;
+    &message: string;
   end;
 
   // Structure to capture a description for an error code.
@@ -508,7 +508,7 @@ type
     source: string;
 
     // The diagnostic's message.
-    messageString: string;
+    &message: string;
 
     // Additional metadata about the diagnostic.
     //

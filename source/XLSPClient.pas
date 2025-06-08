@@ -526,10 +526,15 @@ begin
   begin
     FServerThread.OnTerminate := nil;
     FServerThread.OnExit := nil;
+    FServerThread.OnReadFromServer := nil;
+    FServerThread.OnReadErrorFromServer := nil;
+    TThread.RemoveQueuedEvents(FServerThread);
     FServerThread.Terminate;
-    // A bit of time for the thread queued events to execute
-    // Without it the debugger may report memory leaks
-    CheckSynchronize(100);
+    // Give it a bit of time for the server to exit
+    // and the TThread object to be freed.
+    // Otherwise you may get memory leak reports
+    TThread.Yield;
+    CheckSynchronize;
   end;
   FCloseTimer.Enabled := False;
   FExitTimer.Enabled := False;
@@ -1724,7 +1729,7 @@ begin
   FResponseTimer.Enabled := False;
   FCloseTimer.Enabled := False;
   FExitTimer.Enabled := False;
-  if Assigned(FOnExit) then
+  if not (csDestroying in ComponentState) and Assigned(FOnExit) then
     TThread.ForceQueue(nil, procedure
     begin
       FOnExit(Self, exitcode, FRestartServer);
@@ -1817,6 +1822,7 @@ begin
   FServerThread.Start;
 
   FRequestCount := 0;
+
   FStopwatch.Start;
 end;
 
