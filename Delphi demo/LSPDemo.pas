@@ -569,6 +569,8 @@ begin
 end;
 
 procedure TLSPDemoForm.ListBox1KeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
+var
+  Item: TLSPCompletionItem;
 begin
   if (Key = VK_SPACE) or (Key = VK_RETURN) or (Key = VK_ESCAPE) then
   begin
@@ -582,16 +584,16 @@ begin
     begin
       var Params := TSmartPtr.Make(TLSPCompletionItemResolveParams.Create)();
       Params.completionItem := FCompletionList[ListBox1.ItemIndex];
-      FLSPClient.SendSyncRequest(lspCompletionItemResolve, Params,
-      procedure(Json: TJSONObject)
-      var
-        Item: TLSPCompletionItem;
+      if FLSPClient.SendSyncRequest(lspCompletionItemResolve, Params,
+        procedure(Json: TJSONObject)
+        begin
+          if ResponseError(Json) then Exit;
+          Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
+        end, 100) then
       begin
-        if ResponseError(Json) then Exit;
-        Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
         Label1.Caption := item.detail;
         Label2.Caption := TLSPMarkupContent.FromJsonRaw(item.documentation).value;
-      end, 100);
+      end;
     end;
   end;
 end;
