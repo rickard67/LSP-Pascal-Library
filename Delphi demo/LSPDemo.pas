@@ -310,7 +310,7 @@ begin
       item := TDiagnosticItem.Create;
       item.Range := diagnostics[i].range;
       item.Severity := diagnostics[i].severity;
-      item.MessageStr := diagnostics[i].messageString;
+      item.MessageStr := diagnostics[i].message;
 
       // Construct display line
       case item.Severity of
