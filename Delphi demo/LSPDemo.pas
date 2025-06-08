@@ -111,7 +111,9 @@ implementation
 
 uses
   System.UITypes,
+  System.Types,
   System.Math,
+  System.JSON,
   options,
   XLSPFunctions,
   XLSPUtils;
@@ -238,7 +240,8 @@ begin
   value.capabilities.AddPublishDiagnosticsSupport(True,False,False,False);
 
   // Capabilities/textDocument/completion
-  value.capabilities.AddCompletionSupport(False,True,False,True,True,False,False,False,False);
+  value.capabilities.AddCompletionSupport(False,True,False,True,True,False,False,
+    False,False, [], ['details', 'documention']);
 
   // Capabilities/textDocument/hover
   value.capabilities.AddHoverSupport(False,True,True);
@@ -566,8 +569,6 @@ begin
 end;
 
 procedure TLSPDemoForm.ListBox1KeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
-var
-  item: TLSPCompletionItem;
 begin
   if (Key = VK_SPACE) or (Key = VK_RETURN) or (Key = VK_ESCAPE) then
   begin
@@ -577,11 +578,20 @@ begin
   end
   else if (Key = VK_UP) or (Key = VK_DOWN) then
   begin
-    if ListBox1.Count > 0 then
+    if (ListBox1.Count > 0) and FLSPClient.IsRequestSupported(lspCompletionItemResolve) then
     begin
-      item := FCompletionList[ListBox1.ItemIndex];
-      Label1.Caption := item.detail;
-      Label2.Caption := TLSPMarkupContent.FromJsonRaw(item.documentation).value;
+      var Params := TSmartPtr.Make(TLSPCompletionItemResolveParams.Create)();
+      Params.completionItem := FCompletionList[ListBox1.ItemIndex];
+      FLSPClient.SendSyncRequest(lspCompletionItemResolve, Params,
+      procedure(Json: TJSONObject)
+      var
+        Item: TLSPCompletionItem;
+      begin
+        if ResponseError(Json) then Exit;
+        Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
+        Label1.Caption := item.detail;
+        Label2.Caption := TLSPMarkupContent.FromJsonRaw(item.documentation).value;
+      end, 100);
     end;
   end;
 end;
