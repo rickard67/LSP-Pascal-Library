@@ -4296,7 +4296,7 @@ type
     //
     // @deprecated Use `tags` instead if supported.
     //
-    deprecated: boolean;
+    &deprecated: boolean;
 
     // Select this item when showing.
     //
