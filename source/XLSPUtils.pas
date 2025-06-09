@@ -722,7 +722,7 @@ end;
 {$IF CompilerVersion < 36}
 function TJsonIntegerConverter.CanConvert(ATypeInfo: PTypeInfo): Boolean;
 begin
-  Result := ATypeInfo.Kind = tkInteger;
+  Result := ATypeInfo.Kind in [tkInteger, tkEnumeration];
 end;
 
 function TJsonIntegerConverter.CanWrite: Boolean;
@@ -735,7 +735,7 @@ function TJsonIntegerConverter.ReadJson(const AReader: TJsonReader;
   const ASerializer: TJsonSerializer): TValue;
 begin
   if AReader.TokenType = TJsonToken.Float then
-    Result := Trunc(AReader.Value.AsExtended)
+    TValue.Make(Trunc(AReader.Value.AsExtended), AExistingValue.TypeInfo, Result)
   else
     Result := AReader.Value;
 end;

@@ -1290,7 +1290,7 @@ type
 
   // A symbol kind.
   TLSPSymbolKind = (
-    symFile=1,symModule,symNamespace,symPackage,symClass,symMethod,symProperty,symField,
+    symUnknown, symFile,symModule,symNamespace,symPackage,symClass,symMethod,symProperty,symField,
     symConstructor,symEnum,symInterface,symFunction,symVariable,symConstant,symString,
     symNumber,symBoolean,symArray,symObject,symKey,symNull,symEnumMember,symStruct,
     symEvent,symOperator,symTypeParameter
