@@ -319,7 +319,7 @@ type
     // params: is the message params TLSPBaseParams decendent
     // paramJson: if present takes precedence over params
     // return value: The request **unique** id
-    procedure NotifyServer(const lspKind: TLSPKind; const method: string = '';
+    procedure SendNotification(const lspKind: TLSPKind; const method: string = '';
       const params: TLSPBaseParams = nil; const paramJSON: string = '');
     procedure SendSetTraceNotification(const traceValue: string);
     procedure UnRegisterPartialResultToken(const token: string);
@@ -609,7 +609,7 @@ begin
     // Send an exit notification to the server
     if bNoExitEvent then
       FServerThread.OnExit := nil;
-    NotifyServer(lspExit);
+    SendNotification(lspExit);
   end;
 
   // Give the server some time to exit and let the thread terminate
@@ -1290,7 +1290,7 @@ begin
         raise XLSPException.CreateRes(@rsInitializeFailure);
 
       // Send Initialized notification to the server
-      NotifyServer(lspInitialized);
+      SendNotification(lspInitialized);
 
       // OnInitialized event
       if Assigned(FOnInitialized) then
@@ -1377,6 +1377,7 @@ begin
       if Assigned(FOnCompletionItemResolve) then
       begin
         ResultObj := TSmartPtr.Make(JsonCompletionItemResolveResultToObject(ResultJson))();
+        TLSPCompetionItemResolveResult(ResultObj).completionItem.resolved := True;
         FOnCompletionItemResolve(Self, Id, TLSPCompetionItemResolveResult(ResultObj).completionItem);
       end;
 
@@ -2026,7 +2027,7 @@ begin
   Result := LSPKindFromMethod(s);
 end;
 
-procedure TLSPClient.NotifyServer(const lspKind: TLSPKind; const method: string;
+procedure TLSPClient.SendNotification(const lspKind: TLSPKind; const method: string;
   const params: TLSPBaseParams; const paramJSON: string);
 const
   NotifyFormat = '{"jsonrpc": "2.0","method": %s,"params": %s}';
@@ -2143,7 +2144,7 @@ var
 begin
   params := TSmartPtr.Make(TLSPWorkDoneProgressCancelParams.Create)();
   params.token := token;
-  NotifyServer(lspWorkDoneProgressCancel, '', params);
+  SendNotification(lspWorkDoneProgressCancel, '', params);
 end;
 
 // The workspace/executeCommand request is sent from the client to the server
@@ -2278,7 +2279,7 @@ begin
   // TraceValue = 'off' | 'message' | 'verbose'
   params := TSmartPtr.Make(TLSPSetTraceParams.Create)();
   params.value := traceValue;
-  NotifyServer(lspSetTrace, '', params);
+  SendNotification(lspSetTrace, '', params);
 end;
 
 function TLSPClient.SendSyncRequest(const lspKind: TLSPKind; params:

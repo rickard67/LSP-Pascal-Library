@@ -5848,7 +5848,7 @@ type
     lspDidOpenNotebookDocument, lspDidChangeNotebookDocument, lspDidSaveNotebookDocument,
     lspDidCloseNotebookDocument, lspCancelRequest, lspProgress, lspLogTrace, lspSetTrace,
     // To allow requests/notifications not in the list above
-    // See: SendRequest/NotifyServer
+    // See: SendRequest/SendNotification
     lspUnknown
     );
 
