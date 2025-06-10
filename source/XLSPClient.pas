@@ -1681,7 +1681,7 @@ begin
     lspWorkspaceSymbol:
       if Assigned(FOnWorkspaceSymbol) then
       begin
-        ResultObj := TSmartPtr.Make(JsonSignatureHelpResultToObject(ResultJson))();
+        ResultObj := TSmartPtr.Make(JsonWorkspaceSymbolResultToObject(ResultJson))();
         FOnWorkspaceSymbol(Self, Id, TLSPWorkspaceSymbolInformationResult(ResultObj).values);
       end;
 
