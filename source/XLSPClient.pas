@@ -450,6 +450,7 @@ type
 implementation
 
 uses
+  Winapi.Windows,
   System.StrUtils,
   System.TimeSpan,
   System.Rtti,
@@ -1746,6 +1747,8 @@ procedure TLSPClient.OnReadFromServer(Sender: TObject; const AJson: string);
 var
   JsonObject: TJSONObject;
 begin
+  if csDestroying in ComponentState then Exit;
+
   FResponseTimer.Enabled := False;
 
   if (liServerRPCMessages in FLogItems) and (AJson <> '') then
@@ -2176,7 +2179,7 @@ begin
     Params := TSmartPtr.Make(TLSPInitializeParams.Create)();
 
     // Set options to client capabilities
-    TLSPInitializeParams(Params).processId := 0;
+    TLSPInitializeParams(Params).processId := GetCurrentProcessId;
     TLSPInitializeParams(Params).clientInfo.name := ClientName;
     TLSPInitializeParams(Params).clientInfo.version := ClientVersion;
     TLSPInitializeParams(Params).capabilities := TLSPClientCapabilities.Create;
