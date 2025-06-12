@@ -158,8 +158,6 @@ type
     FDynamicCapabilities: TList<TLSPRegistration>;
     FExitTimeout: Integer;
     FExitTimer: TTimer;
-    FFileLogList: TStringList;
-    FFileLog: TextFile;
     FOnTypeHierarchySupertypes: TOnPrepareTypeHierarchyEvent;
     FOnWorkspaceDiagnostic: TOnWorkspaceDiagnosticEvent;
     FId: string;
@@ -167,7 +165,6 @@ type
     FInitializeResultObject: TLSPInitializeResult;
     FLogItems: TLspLogItems;
     FLogFileName: string;
-    FLogToFile: Boolean;
     FServerThread: TLSPExecuteServerThread;
     FOnCallHierarchyIncomming: TOnCallHierarchyIncommingEvent;
     FOnCallHierarchyOutgoing: TOnCallHierarchyOutgoingEvent;
@@ -358,7 +355,6 @@ type
     property ExitTimeout: Integer read FExitTimeout write SetExitTimeout default 1000;
     property LogItems: TLspLogItems read FLogItems write FLogItems default [];
     property LogFileName: string read FLogFileName write FLogFileName;
-    property LogToFile: Boolean read FLogToFile write FLogToFile default False;
     property ResponseTimeout: Integer read FResponseTimeout write SetResponseTimeout default 15000;
     property OnCallHierarchyIncomming: TOnCallHierarchyIncommingEvent read FOnCallHierarchyIncomming write
         FOnCallHierarchyIncomming;
@@ -479,7 +475,6 @@ begin
   inherited;
   SetDefaultOptions;
   FPartialTokens := TStringlist.Create;
-  FFileLogList := TStringlist.Create;
   FDynamicCapabilities := TList<TLSPRegistration>.Create;
   FDynamicCapabilities.OnNotify := DynCapabilitiesNotify;
   FHandlerDict := TDictionary<Integer, TLSPResponseHandler>.Create;
@@ -536,7 +531,6 @@ begin
   FExitTimer.Enabled := False;
   FStopwatch.Stop;
   FPartialTokens.Free;
-  FFileLogList.Free;
   FDynamicCapabilities.Free;
   FInitializeResultObject.Free;
   FHandlerDict.Free;
@@ -571,7 +565,7 @@ var
   Content: TBytes;
   Header: AnsiString;
 begin
-  if FLogToFile and (liClientRPCMessages in FLogItems) and (AJson <> '') then
+  if (liClientRPCMessages in FLogItems) and (AJson <> '') then
     SaveToLogFile('Write to server:' + #13#10 + AJson);
   Content := TEncoding.UTF8.GetBytes(AJson);
   Header := AnsiString('Content-Length: ' + IntToStr(Length(Content)) + #13#10#13#10);
@@ -745,7 +739,7 @@ begin
         if Assigned(FOnLogMessage) then
           FOnLogMessage(Self, TLSPMessageType(LInt), LStr);
 
-        if FLogToFile and (liServerMessages in FLogItems) then
+        if liServerMessages in FLogItems then
         begin
           case TLSPMessageType(LInt) of
             TLSPMessageType.lspMsgError: Msg := 'Error: ';
@@ -765,7 +759,7 @@ begin
         if Assigned(FOnLogTrace) then
           FOnLogTrace(Self, TLSPLogTraceParams(Params));
 
-        if FLogToFile and (liServerMessages in FLogItems) then
+        if liServerMessages in FLogItems then
         begin
           Msg := 'Logtrace: ' + TLSPLogTraceParams(params).message + #13#10;
           SaveToLogFile(Msg);
@@ -1738,7 +1732,7 @@ end;
 procedure TLSPClient.OnReadErrorFromServer(Sender: TObject;
   const ErrorMsg: string);
 begin
-  if FLogToFile and (liServerRPCMessages in FLogItems) and (ErrorMsg <> '') then
+  if (liServerRPCMessages in FLogItems) and (ErrorMsg <> '') then
     SaveToLogFile('Error read from server:' + ErrorMsg);
   TThread.Queue(FServerThread, procedure
   begin
@@ -1754,7 +1748,7 @@ var
 begin
   FResponseTimer.Enabled := False;
 
-  if FLogToFile and (liServerRPCMessages in FLogItems) and (AJson <> '') then
+  if (liServerRPCMessages in FLogItems) and (AJson <> '') then
     SaveToLogFile('Read from server:' + #13#10 + AJson);
 
   try
@@ -2108,22 +2102,21 @@ end;
 
 procedure TLSPClient.SaveToLogFile(const w: string);
 var
-  i: Integer;
+  FileStream: TFileStream;
+  Bytes: TBytes;
 begin
   if FLogFileName = '' then Exit;
-  FFileLogList.Text := w;
 
-  AssignFile(FFileLog, FLogFileName);
   if not FileExists(FLogFileName) then
-    ReWrite(FFileLog);
-  Append(FFileLog);
+    FileStream := TFileStream.Create(FLogFileName, fmCreate)
+  else
+    FileStream := TFileStream.Create(FLogFileName, fmOpenReadWrite);
   try
-    WriteLn(FFileLog, '');
-    for i := 0 to FFileLogList.Count - 1 do
-      WriteLn(FFileLog, FFileLogList[i]);
-    WriteLn(FFileLog, '');
+    FileStream.Seek(0, soEnd);
+    Bytes := TEncoding.UTF8.GetBytes(w);
+    FileStream.Write(Bytes, Length(Bytes));
   finally
-    CloseFile(FFileLog);
+    FileStream.Free;
   end;
 end;
 
