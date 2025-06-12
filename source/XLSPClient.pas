@@ -72,6 +72,9 @@ uses
   Vcl.ExtCtrls;
 
 type
+  TLspLogItem = (liServerRPCMessages, liClientRPCMessages, liServerMessages);
+  TLspLogItems = set of TLspLogItem;
+
   TOnCallHierarchyIncommingEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPCallHierarchyIncomingCallResult) of object;
   TOnCallHierarchyOutgoingEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPCallHierarchyOutgoingCallResult) of object;
   TOnCodeActionEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPCodeActionResult) of object;
@@ -162,9 +165,8 @@ type
     FId: string;
     FInitialized: Boolean;
     FInitializeResultObject: TLSPInitializeResult;
-    FLogCommunication: Boolean;
+    FLogItems: TLspLogItems;
     FLogFileName: string;
-    FLogServerMessages: Boolean;
     FLogToFile: Boolean;
     FServerThread: TLSPExecuteServerThread;
     FOnCallHierarchyIncomming: TOnCallHierarchyIncommingEvent;
@@ -354,9 +356,8 @@ type
     property ClientVersion: string read FClientVersion write FClientVersion;
     property CloseTimeout: Integer read FCloseTimeout write SetCloseTimeout default 3000;
     property ExitTimeout: Integer read FExitTimeout write SetExitTimeout default 1000;
-    property LogCommunication: Boolean read FLogCommunication write FLogCommunication default False;
+    property LogItems: TLspLogItems read FLogItems write FLogItems default [];
     property LogFileName: string read FLogFileName write FLogFileName;
-    property LogServerMessages: Boolean read FLogServerMessages write FLogServerMessages default False;
     property LogToFile: Boolean read FLogToFile write FLogToFile default False;
     property ResponseTimeout: Integer read FResponseTimeout write SetResponseTimeout default 15000;
     property OnCallHierarchyIncomming: TOnCallHierarchyIncommingEvent read FOnCallHierarchyIncomming write
@@ -478,11 +479,6 @@ begin
   inherited;
   SetDefaultOptions;
   FPartialTokens := TStringlist.Create;
-  FRestartServer := False;
-  FLogToFile := False;
-  FInitialized := False;
-  FLogCommunication := True;
-  FLogServerMessages := False;
   FFileLogList := TStringlist.Create;
   FDynamicCapabilities := TList<TLSPRegistration>.Create;
   FDynamicCapabilities.OnNotify := DynCapabilitiesNotify;
@@ -575,6 +571,8 @@ var
   Content: TBytes;
   Header: AnsiString;
 begin
+  if FLogToFile and (liClientRPCMessages in FLogItems) and (AJson <> '') then
+    SaveToLogFile('Write to server:' + #13#10 + AJson);
   Content := TEncoding.UTF8.GetBytes(AJson);
   Header := AnsiString('Content-Length: ' + IntToStr(Length(Content)) + #13#10#13#10);
 
@@ -747,7 +745,7 @@ begin
         if Assigned(FOnLogMessage) then
           FOnLogMessage(Self, TLSPMessageType(LInt), LStr);
 
-        if FLogToFile and FLogServerMessages then
+        if FLogToFile and (liServerMessages in FLogItems) then
         begin
           case TLSPMessageType(LInt) of
             TLSPMessageType.lspMsgError: Msg := 'Error: ';
@@ -767,7 +765,7 @@ begin
         if Assigned(FOnLogTrace) then
           FOnLogTrace(Self, TLSPLogTraceParams(Params));
 
-        if FLogToFile and FLogServerMessages then
+        if FLogToFile and (liServerMessages in FLogItems) then
         begin
           Msg := 'Logtrace: ' + TLSPLogTraceParams(params).message + #13#10;
           SaveToLogFile(Msg);
@@ -1740,7 +1738,7 @@ end;
 procedure TLSPClient.OnReadErrorFromServer(Sender: TObject;
   const ErrorMsg: string);
 begin
-  if FLogToFile and FLogCommunication and (ErrorMsg <> '') then
+  if FLogToFile and (liServerRPCMessages in FLogItems) and (ErrorMsg <> '') then
     SaveToLogFile('Error read from server:' + ErrorMsg);
   TThread.Queue(FServerThread, procedure
   begin
@@ -1756,7 +1754,7 @@ var
 begin
   FResponseTimer.Enabled := False;
 
-  if FLogToFile and FLogCommunication and (AJson <> '') then
+  if FLogToFile and (liServerRPCMessages in FLogItems) and (AJson <> '') then
     SaveToLogFile('Read from server:' + #13#10 + AJson);
 
   try
