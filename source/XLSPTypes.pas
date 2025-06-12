@@ -7355,7 +7355,7 @@ begin
   if Full = '' then Exit;
 
   try
-    JsonValue := TJSONValue.ParseJSONValue(Full);
+    JsonValue := TSmartPtr.Make(TJSONValue.ParseJSONValue(Full))();
   except
     Exit;
   end;
