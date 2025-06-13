@@ -58,6 +58,7 @@ type
     FOnReadFromServer: TReadFromServerEvent;
     FOnReadErrorFromServer: TReadFromServerEvent;
     FOnExit: TExitServerEvent;
+    FOnConnected: TNotifyEvent;
     procedure ExtractAndSendResponceMessages(Bytes: TBytes);
     procedure ProcessErrorOutput(Bytes: TBytes);
     procedure RunServer;
@@ -81,11 +82,13 @@ type
       read FOnReadFromServer write FOnReadFromServer;
     property OnReadErrorFromServer: TReadFromServerEvent
       read FOnReadErrorFromServer write FOnReadErrorFromServer;
+    property OnConnected: TNotifyEvent read FOnConnected
+      write FOnConnected;
   end;
 
 const
   FORCED_TERMINATION = $FE;
-  AcceptTimeout = 2000;
+  AcceptTimeout = 5000;
 
 implementation
 
@@ -335,6 +338,9 @@ begin
     then
       RaiseLastOSError;
 
+    if Assigned(FOnConnected) then
+      FOnConnected(Self);
+
     // Setup wait handles
     WaitHandles := [FProcessInformation.hProcess, FWriteEvent.Handle];
 
@@ -384,12 +390,13 @@ end;
 procedure TLSPExecuteServerThread.ProcessErrorOutput(Bytes: TBytes);
 begin
   if Assigned(FOnReadErrorFromServer) then
-  begin
-    if TEncoding.UTF8.IsBufferValid(Bytes) then
+    try
+      // first try UTF8
       FOnReadErrorFromServer(Self, TEncoding.UTF8.GetString(Bytes))
-    else
+    except
+      // fallback to ANSI
       FOnReadErrorFromServer(Self, TEncoding.ANSI.GetString(Bytes));
-  end;
+    end;
 end;
 
 procedure TLSPExecuteServerThread.ReceiveFinished(const ASyncResult: IAsyncResult);
@@ -460,7 +467,7 @@ begin
     if (WaitForSingleObject(FAcceptEvent.Handle, AcceptTimeout) = WAIT_TIMEOUT) or
       not Assigned(FLspSocket)
     then
-      Terminate
+      Terminate;
   end
   else
   begin
@@ -479,6 +486,9 @@ begin
     FLspSocket.ReceiveTimeout := -1; // Infinite
     FLspSocket.BeginReceive(ReceiveFinished);
   end;
+
+  if Assigned(FOnConnected) then
+    FOnConnected(Self);
 
   WaitHandles := [FProcessInformation.hProcess, FWriteEvent.Handle];
 

@@ -196,6 +196,7 @@ type
     FOnLogTrace: TOnLogTraceEvent;
     FOnProgress: TOnProgressEvent;
     FOnRegisterCapability: TOnRegisterCapabilityEvent;
+    FOnServerConnected: TNotifyEvent;
     FOnShowDocument: TOnShowDocumentRequestEvent;
     FOnShowMessage: TOnShowMessageEvent;
     FOnShowMessageRequest: TOnShowMessageRequestEvent;
@@ -255,6 +256,7 @@ type
     procedure OnExitTimer(Sender: TObject);
     procedure OnResponseTimer(Sender: TObject);
     procedure OnServerThreadTerminate(Sender: TObject);
+    procedure OnConnected(Sender: TObject);
     procedure RegisterCapability(const item: TLSPRegistration);
     procedure SaveToLogFile(const w: string);
     procedure SendResponse(const id: Variant; params: TLSPBaseParams = nil;
@@ -424,6 +426,8 @@ type
     property OnShutdown: TOnShutdownEvent read FOnShutdown write FOnShutdown;
     property OnSignatureHelp: TOnSignatureHelpEvent read FOnSignatureHelp write
         FOnSignatureHelp;
+    property OnServerConnected: TNotifyEvent read FOnServerConnected
+      write FOnServerConnected;
     property OnTelemetryEvent: TOnTelemetryEvent read FOnTelemetryEvent write FOnTelemetryEvent;
     property OnUnregisterCapability: TOnUnegisterCapabilityEvent read
         FOnUnregisterCapability write FOnUnregisterCapability;
@@ -1772,6 +1776,16 @@ begin
     end);
 end;
 
+procedure TLSPClient.OnConnected(Sender: TObject);
+begin
+  if Assigned(FOnServerConnected) then
+    TThread.Queue(FServerThread,
+      procedure
+      begin
+        FOnServerConnected(Self);
+      end)
+end;
+
 procedure TLSPClient.OnServerThreadTerminate(Sender: TObject);
 begin
   FServerThread := nil;
@@ -1818,6 +1832,7 @@ begin
   FServerThread.OnReadErrorFromServer := OnReadErrorFromServer;
   FServerThread.OnExit := OnExitServer;
   FServerThread.OnTerminate := OnServerThreadTerminate;
+  FServerThread.OnConnected := OnConnected;
   FServerThread.Start;
 
   FRequestCount := 0;
