@@ -75,6 +75,8 @@ type
   TLspLogItem = (liServerRPCMessages, liClientRPCMessages, liServerMessages);
   TLspLogItems = set of TLspLogItem;
 
+  TTransportType = XLSPExecute.TTransportType;
+
   TOnCallHierarchyIncommingEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPCallHierarchyIncomingCallResult) of object;
   TOnCallHierarchyOutgoingEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPCallHierarchyOutgoingCallResult) of object;
   TOnCodeActionEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPCodeActionResult) of object;
@@ -282,8 +284,9 @@ type
     procedure ProcessServerNotification(LJson: TJsonObject);
     procedure ProcessServerResponse(LJson: TJsonObject);
     procedure RegisterPartialResultToken(const lspKind: TLSPKind; const token: string);
-    procedure RunServer(const ACommandline, ADir: String; const AEnvList: string = ''; const AHost: string = ''; const
-        APort: Integer = 0; const AUseSocket: Boolean = False);
+    procedure RunServer(const ACommandline, ADir: string; const AEnvList: string =
+        ''; const AHost: string = ''; const APort: Integer = 0; const
+        ATransportType: TTransportType = ttStdIO);
     function GetRunTimeInSeconds: Double;
     function GetSyncKind: Integer;
     function IncludeText(lspKind: TLSPKind; includeDefault: Boolean): Boolean;
@@ -1805,10 +1808,10 @@ begin
 end;
 
 procedure TLSPClient.RunServer(const ACommandline, ADir: string; const AEnvList: string = ''; const AHost: string = '';
-    const APort: Integer = 0; const AUseSocket: Boolean = False);
+    const APort: Integer = 0; const ATransportType: TTransportType = ttStdIO);
 begin
   FServerThread := TLSPExecuteServerThread.Create(ACommandline, ADir);
-  FServerThread.UseSocket := AUseSocket;
+  FServerThread.TransportType := ATransportType;
   FServerThread.Host := AHost;
   FServerThread.Port := APort;
   FServerThread.OnReadFromServer := OnReadFromServer;

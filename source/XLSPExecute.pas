@@ -32,6 +32,8 @@ uses
   System.Net.Socket;
 
 type
+  TTransportType = (ttStdIO, ttSocketClient, ttSocketServer);
+
   TReadFromServerEvent = procedure(Sender: TObject; const AJson: string) of object;
   TExitServerEvent = procedure(Sender: TObject; exitcode: Integer) of object;
 
@@ -44,11 +46,13 @@ type
     FJson: string;
     FReadBytes: TBytes;
     FWriteBytes: TBytes;
+    FAcceptEvent: TSimpleEvent;
     FWriteEvent: TSimpleEvent;
     FPort: Integer;
     FProcessInformation: TProcessInformation;
     FSocket: TSocket;
-    FUseSocket: Boolean;
+    FLspSocket: TSocket;
+    FTransportType: TTransportType;
     FContentHeaderRE: TRegEx;
     FWriteLock: TRTLCriticalSection;
     FOnReadFromServer: TReadFromServerEvent;
@@ -59,6 +63,7 @@ type
     procedure RunServer;
     procedure RunServerThroughSocket;
     procedure ReceiveFinished(const ASyncResult: IAsyncResult);
+    procedure ConnectionAccepted(const ASyncResult: IAsyncResult);
     procedure SendToClient;
   protected
     procedure TerminatedSet; override;
@@ -69,7 +74,8 @@ type
     procedure SendToServer(Bytes: TBytes);
     property Host: string read FHost write FHost;
     property Port: Integer read FPort write FPort;
-    property UseSocket: Boolean read FUseSocket write FUseSocket;
+    property TransportType: TTransportType read FTransportType
+      write FTransportType;
     property OnExit: TExitServerEvent read FOnExit write FOnExit;
     property OnReadFromServer: TReadFromServerEvent
       read FOnReadFromServer write FOnReadFromServer;
@@ -79,12 +85,20 @@ type
 
 const
   FORCED_TERMINATION = $FE;
+  AcceptTimeout = 2000;
 
 implementation
 
 uses
   System.StrUtils,
   XLSPUtils;
+
+procedure TLSPExecuteServerThread.ConnectionAccepted(
+  const ASyncResult: IAsyncResult);
+begin
+  FLspSocket := FSocket.EndAccept(ASyncResult);
+  FAcceptEvent.SetEvent;
+end;
 
 constructor TLSPExecuteServerThread.Create(const ACommandline, ADir: String);
 const
@@ -97,7 +111,6 @@ var
   Path: array[0..MAX_PATH] of WideChar;
 begin
   inherited Create(True);
-  FUseSocket := False;
   ExpandEnvironmentStringsW(PWideChar(ACommandline), @Path, MAX_PATH);
   FCommandline := Path;
   if ADir <> '' then
@@ -107,6 +120,7 @@ begin
   end;
   Priority := tpNormal;
   FWriteLock.Initialize;
+  FAcceptEvent := TSimpleEvent.Create(nil, False, False, '');
   FWriteEvent := TSimpleEvent.Create(nil, False, False, '');
 
   FContentHeaderRE := CompiledRegEx(ContentHeaderRE, [roNotEmpty, roMultiLine], False);
@@ -117,8 +131,10 @@ begin
   // The inherited destructor calls Termainate and waits
   inherited;
   FWriteLock.Destroy;
+  FAcceptEvent.Free;
   FWriteEvent.Free;
-  FreeAndNil(FSocket);
+  FLspSocket.Free;
+  FSocket.Free;
 end;
 
 
@@ -127,10 +143,10 @@ end;
 procedure TLSPExecuteServerThread.Execute;
 begin
   FreeOnTerminate := True;
-  if FUseSocket then
-    RunServerThroughSocket
+  if FTransportType = ttStdIO then
+    RunServer
   else
-    RunServer;
+    RunServerThroughSocket;
 end;
 
 procedure TLSPExecuteServerThread.ExtractAndSendResponceMessages(Bytes: TBytes);
@@ -368,7 +384,12 @@ end;
 procedure TLSPExecuteServerThread.ProcessErrorOutput(Bytes: TBytes);
 begin
   if Assigned(FOnReadErrorFromServer) then
-    FOnReadErrorFromServer(Self, TEncoding.UTF8.GetString(Bytes));
+  begin
+    if TEncoding.UTF8.IsBufferValid(Bytes) then
+      FOnReadErrorFromServer(Self, TEncoding.UTF8.GetString(Bytes))
+    else
+      FOnReadErrorFromServer(Self, TEncoding.ANSI.GetString(Bytes));
+  end;
 end;
 
 procedure TLSPExecuteServerThread.ReceiveFinished(const ASyncResult: IAsyncResult);
@@ -376,7 +397,7 @@ var
   Data: TBytes;
 begin
   try
-    Data := FSocket.EndReceiveBytes(ASyncResult);
+    Data := FLspSocket.EndReceiveBytes(ASyncResult);
     if Length(Data) > 0 then
       ExtractAndSendResponceMessages(Data)
     else if not Terminated then
@@ -384,7 +405,7 @@ begin
       Terminate;
     // Keep on receiving
     if not Terminated then
-      FSocket.BeginReceive(ReceiveFinished);
+      FLspSocket.BeginReceive(ReceiveFinished);
   except
     if not Terminated then
       Terminate;
@@ -411,6 +432,18 @@ begin
   UniqueString(FCommandLine);
   UniqueString(FDir);
 
+  // Create the socket
+  FSocket := TSocket.Create(TSocketType.TCP);
+
+  if FTransportType = ttSocketServer then
+    // Try to accept client asynchronously
+    try
+      FSocket.Listen(FHost, '', Port);
+      FSocket.BeginAccept(ConnectionAccepted, AcceptTimeout);
+    except
+      Exit;
+    end;
+
   // Run LSP server
   if not CreateProcess(nil, PChar(FCommandline), nil, nil, True,
     NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, nil, PChar(FDir),
@@ -421,15 +454,31 @@ begin
 
   CloseHandle(FProcessInformation.hThread); // Not needed
 
-  // Create the socket
-  FSocket := TSocket.Create(TSocketType.TCP);
+  if (FTransportType = ttSocketServer) then
+  begin
+    // Wait for accepted connemction
+    if (WaitForSingleObject(FAcceptEvent.Handle, AcceptTimeout) = WAIT_TIMEOUT) or
+      not Assigned(FLspSocket)
+    then
+      Terminate
+  end
+  else
+  begin
+    try
+      FSocket.Connect('', FHost, '', FPort);
+    except
+      Terminate;
+    end;
+    FLspSocket := FSocket;
+    FSocket := nil;
+  end;
 
-  // Connect synchronously with default timeout
-  FSocket.Connect('', FHost, '', FPort);
-
-  // Receieve asynchrnously
-  FSocket.ReceiveTimeout := -1; // Infinite
-  FSocket.BeginReceive(ReceiveFinished);
+  if not Terminated then
+  begin
+    // Receieve asynchrnously
+    FLspSocket.ReceiveTimeout := -1; // Infinite
+    FLspSocket.BeginReceive(ReceiveFinished);
+  end;
 
   WaitHandles := [FProcessInformation.hProcess, FWriteEvent.Handle];
 
@@ -446,7 +495,7 @@ begin
             if Length(FWriteBytes) > 0 then
             try
               // send synchronously
-              FSocket.Send(FWriteBytes)
+              FLspSocket.Send(FWriteBytes)
             except
               Break;
             end;
@@ -488,8 +537,13 @@ end;
 
 procedure TLSPExecuteServerThread.TerminatedSet;
 begin
-  if UseSocket and Assigned(FSocket) and (TSocketState.Connected in FSocket.State) then
-    FSocket.Close(True);
+  if FTransportType <> ttStdIO then
+  begin
+    if Assigned(FLspSocket) and (TSocketState.Connected in FLspSocket.State) then
+      FlspSocket.Close(True);
+    if Assigned(FSocket) and (TSocketState.Connected in FSocket.State) then
+      FSocket.Close(True);
+  end;
 
   // Kill the server when Terminate is called
   if Started and not Finished then
