@@ -2255,7 +2255,7 @@ begin
   begin
     // Start the response timer
     FResponseTimer.Enabled := True;
-    FRestartServer := lspKind <> lspInitialize;
+    FRestartServer := not (lspKind in [lspInitialize, lspShutdown, lspExit]);
     // Output to server
     SendToServer(Request);
   end;
