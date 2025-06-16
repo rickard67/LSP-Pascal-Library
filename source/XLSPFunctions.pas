@@ -161,6 +161,7 @@ const
   // It is used in URLEscape.  Its use fixes #1346.
   URL_ESCAPE_AS_UTF8: DWORD = $00040000;
 begin
+  if APath = '' then Exit('');
   var BufferLen: DWORD := INTERNET_MAX_URL_LENGTH;
   SetLength(Result, BufferLen);
   OleCheck(UrlCreateFromPath(PChar(APath), PChar(Result), @BufferLen, URL_ESCAPE_AS_UTF8));

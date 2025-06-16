@@ -258,7 +258,7 @@ type
     procedure OnServerThreadTerminate(Sender: TObject);
     procedure OnConnected(Sender: TObject);
     procedure RegisterCapability(const item: TLSPRegistration);
-    procedure SaveToLogFile(const w: string);
+    procedure SaveToLogFile(const Msg: string);
     procedure SendResponse(const id: Variant; params: TLSPBaseParams = nil;
       error: TLSPResponseError = nil; resultType: TLSPResultType = lsprNull;
       const resultString: string = '');
@@ -2121,7 +2121,7 @@ begin
     FServerThread.Terminate;
 end;
 
-procedure TLSPClient.SaveToLogFile(const w: string);
+procedure TLSPClient.SaveToLogFile(const Msg: string);
 var
   FileStream: TFileStream;
   Bytes: TBytes;
@@ -2134,7 +2134,7 @@ begin
     FileStream := TFileStream.Create(FLogFileName, fmOpenReadWrite);
   try
     FileStream.Seek(0, soEnd);
-    Bytes := TEncoding.UTF8.GetBytes(w);
+    Bytes := TEncoding.UTF8.GetBytes(SLineBreak + Msg + SLineBreak);
     FileStream.Write(Bytes, Length(Bytes));
   finally
     FileStream.Free;

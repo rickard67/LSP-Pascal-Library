@@ -206,7 +206,12 @@ begin
   if dwErrorCode <> 0 then
   begin
     if not PExtOverlapped(lpOverlapped).ServerThread.Terminated then
+    begin
+      OutputDebugString(PChar(
+        Format('ReadCompletionRoutine called with dwErrorCode: %d',
+        [dwErrorCode])));
       PExtOverlapped(lpOverlapped).ServerThread.Terminate;
+    end;
     Exit;
   end;
 
