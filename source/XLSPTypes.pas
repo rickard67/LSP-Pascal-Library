@@ -7625,7 +7625,7 @@ function TLSPInlayHint.GetLabelAsString: string;
 var
   JsonValue: TJSONValue;
 begin
-  Result := [];
+  Result := '';
   if &label <> '' then
   begin
     JsonValue := TSmartPtr.Make(TJsonValue.ParseJSONValue(&label))();
