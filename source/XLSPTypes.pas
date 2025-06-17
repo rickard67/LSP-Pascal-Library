@@ -5617,7 +5617,8 @@ type
     //
     // *Note* that neither the string nor the label part can be empty.
     //
-    &label: TArray<TLSPInlayHintLabelPart>;  // label: string | InlayHintLabelPart[];
+    [JsonConverter(TJsonRawConverter)]
+    &label: string;  // label: string | InlayHintLabelPart[];
 
     // The kind of this hint. Can be omitted in which case the client
     // should fall back to a reasonable default.
@@ -5658,6 +5659,9 @@ type
     // a `textDocument/inlayHint` and a `inlayHint/resolve` request.
     [JsonConverter(TJsonRawConverter)]
     data: string;
+
+    function GetLabelAsString: string;
+    function GetLabelAsArray: TArray<TLSPInlayHintLabelPart>;
   end;
 
 
@@ -7599,6 +7603,34 @@ begin
         Result.baseUri := TSerializer.Deserialize<TLSPWorkspaceFolder>(
           JsonObject.Values['baseUri']);
     end;
+  end;
+end;
+
+{ TLSPInlayHint }
+
+function TLSPInlayHint.GetLabelAsArray: TArray<TLSPInlayHintLabelPart>;
+var
+  JsonValue: TJSONValue;
+begin
+  Result := [];
+  if &label <> '' then
+  begin
+    JsonValue := TSmartPtr.Make(TJsonValue.ParseJSONValue(&label))();
+    if JsonValue is TJSONArray then
+      Result := TSerializer.Deserialize<TArray<TLSPInlayHintLabelPart>>(JsonValue);
+  end;
+end;
+
+function TLSPInlayHint.GetLabelAsString: string;
+var
+  JsonValue: TJSONValue;
+begin
+  Result := [];
+  if &label <> '' then
+  begin
+    JsonValue := TSmartPtr.Make(TJsonValue.ParseJSONValue(&label))();
+    if JsonValue is TJSONString then
+      Result := TJSONString(JsonValue).Value;
   end;
 end;
 
