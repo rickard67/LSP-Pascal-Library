@@ -5662,6 +5662,11 @@ type
 
     function GetLabelAsString: string;
     function GetLabelAsArray: TArray<TLSPInlayHintLabelPart>;
+
+    [JsonIgnore]
+    property LabelAsString: string read GetLabelAsString;
+    [JsonIgnore]
+    property LabelAsArray: TArray<TLSPInlayHintLabelPart> read GetLabelAsArray;
   end;
 
 
