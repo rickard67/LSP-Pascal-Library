@@ -701,6 +701,7 @@ type
 
     // The actual glob pattern;
     pattern: string;
+    class function FromJsonRaw(RawJson: string): TLSPRelativePattern; static;
   end;
 
   TLSPFileSystemWatcher = record
@@ -710,7 +711,8 @@ type
     //
     // @since 3.17.0 support for relative patterns.
     //
-    globPattern: TLSPRelativePattern; // globPattern = Pattern | RelativePattern
+    [JsonConverter(TJsonRawConverter)]
+    globPattern: string; // globPattern = Pattern | RelativePattern
 
     // The kind of events of interest. If omitted it defaults
     // to WatchKind.Create | WatchKind.Change | WatchKind.Delete
@@ -7536,7 +7538,7 @@ end;
 class function TLSPMarkupContent.FromJsonRaw(
   RawJson: string): TLSPMarkupContent;
 var
-  JsonValue: TJsonValue;
+  JsonValue: TJSONValue;
 begin
   if RawJson <> '' then
   begin
@@ -7572,6 +7574,32 @@ destructor TLSPCodeActionResolveResult.Destroy;
 begin
   codeAction.edit.Free;
   inherited;
+end;
+
+{ TLSPRelativePattern }
+
+class function TLSPRelativePattern.FromJsonRaw(
+  RawJson: string): TLSPRelativePattern;
+var
+  JsonValue: TJSONValue;
+  JsonObject: TJSONObject;
+begin
+  if RawJson <> '' then
+  begin
+    JsonValue := TSmartPtr.Make(TJsonValue.ParseJSONValue(RawJson))();
+    if JsonValue is TJsonString then
+      Result.pattern := TJsonString(JsonValue).Value
+    else if JsonValue is TJsonObject then
+    begin
+      JsonObject := TJSONObject(JsonValue);
+      Result.pattern := JsonObject.GetValue<string>('pattern', '');
+      if JsonObject.Values['baseUri'] is TJsonString then
+        Result.baseUri.uri := JsonObject.GetValue<string>('baseUri')
+      else if JsonObject.Values['baseUri'] is TJsonObject then
+        Result.baseUri := TSerializer.Deserialize<TLSPWorkspaceFolder>(
+          JsonObject.Values['baseUri']);
+    end;
+  end;
 end;
 
 end.
