@@ -4257,6 +4257,13 @@ type
   end;
 
   TLSPCompletionItem = record
+  private
+    // A human-readable string that represents a doc-comment.
+    // string | MarkupContent
+    [JsonConverter(TJsonRawConverter)]
+    documentation: string;
+
+    function GetDocumentationMarkup: TLSPMarkupContent;
   public
     // For private use only. You can use this flag in your own code to find out
     // if the completion item comes from OnCompletion or OnCompletionResolve.
@@ -4288,11 +4295,6 @@ type
     // A human-readable string with additional information
     // about this item, like type or symbol information.
     detail: string;
-
-    // A human-readable string that represents a doc-comment.
-    // string | MarkupContent
-    [JsonConverter(TJsonRawConverter)]
-    documentation: string;
 
     // Indicates if this item is deprecated.
     //
@@ -4403,6 +4405,9 @@ type
     [JsonConverter(TJsonRawConverter)]
     data: string;
 
+    [JsonIgnore]
+    property documentationMarkup: TLSPMarkupContent read GetDocumentationMarkup;
+
     class operator Initialize (out Dest: TLSPCompletionItem);
   end;
 
@@ -4508,6 +4513,14 @@ type
   end;
 
   TLSPParameterInformation = record
+  private
+    // The human-readable doc-comment of this parameter. Will be shown
+    // in the UI but can be omitted.
+    [JsonConverter(TJsonRawConverter)]
+    documentation: string; // string | MarkupContent;
+
+    function GetDocumentationMarkup: TLSPMarkupContent;
+  public
     // The label of this parameter information.
     //
     // Either a string or an inclusive start and exclusive end offsets within
@@ -4520,21 +4533,22 @@ type
     // label part in the `SignatureInformation.label`.
     &label: string; // string | [uinteger, uinteger];
 
-    // The human-readable doc-comment of this parameter. Will be shown
-    // in the UI but can be omitted.
-    [JsonConverter(TJsonRawConverter)]
-    documentation: string; // string | MarkupContent;
+    [JsonIgnore]
+    property documentationMarkup: TLSPMarkupContent read GetDocumentationMarkup;
   end;
 
   TLSPSignatureInformation = record
-    // The label of this signature. Will be shown in
-    // the UI.
-    &label: string;
-
+  private
     // The human-readable doc-comment of this signature. Will be shown
     // in the UI but can be omitted.
     [JsonConverter(TJsonRawConverter)]
     documentation: string; // string | MarkupContent;
+
+    function GetDocumentationMarkup: TLSPMarkupContent;
+  public
+    // The label of this signature. Will be shown in
+    // the UI.
+    &label: string;
 
     // The parameters of this signature.
     parameters: TArray<TLSPParameterInformation>;
@@ -4546,6 +4560,9 @@ type
     // @since 3.16.0
     //
     activeParameter: Cardinal;
+
+    [JsonIgnore]
+    property documentationMarkup: TLSPMarkupContent read GetDocumentationMarkup;
   end;
 
   TLSPSignatureHelpResult = class(TLSPBaseResult)
@@ -5573,15 +5590,17 @@ type
   // @since 3.17.0
   //
   TLSPInlayHintLabelPart = record
-  public
-    // The value of this label part.
-    value: string;
-
+  private
     // The tooltip text when you hover over this label part. Depending on
     // the client capability `inlayHint.resolveSupport` clients might resolve
     // this property late using the resolve request.
     [JsonConverter(TJsonRawConverter)]
     tooltip: string;   // tooltip?: string | MarkupContent;
+
+    function GetTooltipMarkup: TLSPMarkupContent;
+  public
+    // The value of this label part.
+    value: string;
 
     // An optional source code location that represents this
     // label part.
@@ -5601,6 +5620,9 @@ type
     // Depending on the client capability `inlayHint.resolveSupport` clients
     // might resolve this property late using the resolve request.
     command: TLSPCommand;
+
+    [JsonIgnore]
+    property tooltipMarkup: TLSPMarkupContent read GetTooltipMarkup;
   end;
 
   // Inlay hint information.
@@ -5608,6 +5630,15 @@ type
   // @since 3.17.0
   //
   TLSPInlayHint = record
+  private
+    // The tooltip text when you hover over this item.
+    //
+    // Depending on the client capability `inlayHint.resolveSupport` clients
+    // might resolve this property late using the resolve request.
+    [JsonConverter(TJsonRawConverter)]
+    tooltip: string;   // tooltip?: string | MarkupContent;
+
+    function GetTooltipMarkup: TLSPMarkupContent;
   public
     // The position of this hint.
     position: TLSPPosition;
@@ -5633,13 +5664,6 @@ type
     // Depending on the client capability `inlayHint.resolveSupport` clients
     // might resolve this property late using the resolve request.
     textEdits: TArray<TLSPAnnotatedTextEdit>;
-
-    // The tooltip text when you hover over this item.
-    //
-    // Depending on the client capability `inlayHint.resolveSupport` clients
-    // might resolve this property late using the resolve request.
-    [JsonConverter(TJsonRawConverter)]
-    tooltip: string; // string | MarkupContent;
 
     // Render padding before the hint.
     //
@@ -5667,6 +5691,8 @@ type
     property LabelAsString: string read GetLabelAsString;
     [JsonIgnore]
     property LabelAsArray: TArray<TLSPInlayHintLabelPart> read GetLabelAsArray;
+    [JsonIgnore]
+    property tooltipMarkup: TLSPMarkupContent read GetTooltipMarkup;
   end;
 
 
@@ -7570,6 +7596,11 @@ end;
 
 { TLSPCompletionItem }
 
+function TLSPCompletionItem.GetDocumentationMarkup: TLSPMarkupContent;
+begin
+  Result := TLSPMarkupContent.FromJsonRaw(documentation);
+end;
+
 class operator TLSPCompletionItem.Initialize(out Dest: TLSPCompletionItem);
 begin
   Dest.insertTextMode := 1;
@@ -7637,6 +7668,32 @@ begin
     if JsonValue is TJSONString then
       Result := TJSONString(JsonValue).Value;
   end;
+end;
+
+function TLSPInlayHint.GetTooltipMarkup: TLSPMarkupContent;
+begin
+  Result := TLSPMarkupContent.FromJsonRaw(tooltip);
+end;
+
+{ TLSPParameterInformation }
+
+function TLSPParameterInformation.GetDocumentationMarkup: TLSPMarkupContent;
+begin
+  Result := TLSPMarkupContent.FromJsonRaw(documentation);
+end;
+
+{ TLSPSignatureInformation }
+
+function TLSPSignatureInformation.GetDocumentationMarkup: TLSPMarkupContent;
+begin
+  Result := TLSPMarkupContent.FromJsonRaw(documentation);
+end;
+
+{ TLSPInlayHintLabelPart }
+
+function TLSPInlayHintLabelPart.GetTooltipMarkup: TLSPMarkupContent;
+begin
+  Result := TLSPMarkupContent.FromJsonRaw(tooltip);
 end;
 
 end.
