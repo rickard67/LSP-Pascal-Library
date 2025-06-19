@@ -140,12 +140,28 @@ type
 {$ENDREGION 'Converters'}
 
 
+{$REGION 'Utility functions'}
+
 function CompiledRegEx(Expr: string; Options: TRegExOptions = [roNotEmpty];
   UCP: Boolean = True): TRegEx;
+
+// Checks whether Handle is zero.  Also ensures it becomes zero
+procedure SafeCloseHandle(var Handle: THandle);
+
+// Ensures hReadPipe and hWritePipe are zero on failure
+function SafeCreatePipe(var hReadPipe, hWritePipe: THandle;
+  lpPipeAttributes: PSecurityAttributes; nSize: DWORD): BOOL;
+
+// Ensures lpTargetHandle is zero on failure
+function SafeDuplicateHandle(hSourceProcessHandle, hSourceHandle,
+  hTargetProcessHandle: THandle; lpTargetHandle: PHandle; dwDesiredAccess: DWORD;
+  bInheritHandle: BOOL; dwOptions: DWORD): BOOL;
 
 // Helper routine to create asynchronous pipes.  From Jcl JclSysUtils
 function CreateAsyncPipe(var hReadPipe, hWritePipe: THandle;
   lpPipeAttributes: PSecurityAttributes; nSize: DWORD): BOOL;
+
+{$ENDREGION 'Utility functions'}
 
 var
   RttiContext: TRttiContext;
@@ -185,6 +201,10 @@ begin
   Result := TObjectHandle<T>.Create(AValue);
 end;
 
+{$ENDREGION 'TSmartPtr'}
+
+{$REGION 'Utility functions'}
+
 function CompiledRegEx(Expr: string; Options: TRegExOptions = [roNotEmpty];
   UCP: Boolean = True): TRegEx;
 begin
@@ -194,7 +214,37 @@ begin
   Result.Study([preJIT]);
 end;
 
-{$ENDREGION 'TSmartPtr'}
+procedure SafeCloseHandle(var Handle: THandle);
+begin
+  if Handle <> 0 then
+  begin
+    CloseHandle(Handle);
+    Handle := 0;
+  end;
+end;
+
+// Ensures hReadPipe and hWritePipe are zero on failure
+function SafeCreatePipe(var hReadPipe, hWritePipe: THandle;
+  lpPipeAttributes: PSecurityAttributes; nSize: DWORD): BOOL;
+begin
+  Result := CreatePipe(hReadPipe, hWritePipe, lpPipeAttributes, nSize);
+  if not Result then
+  begin
+    hReadPipe := 0;
+    hWritePipe := 0;
+  end;
+end;
+
+function SafeDuplicateHandle(hSourceProcessHandle, hSourceHandle,
+  hTargetProcessHandle: THandle; lpTargetHandle: PHandle; dwDesiredAccess: DWORD;
+  bInheritHandle: BOOL; dwOptions: DWORD): BOOL;
+begin
+  Result := DuplicateHandle(hSourceProcessHandle, hSourceHandle,
+    hTargetProcessHandle, lpTargetHandle, dwDesiredAccess, bInheritHandle,
+    dwOptions);
+  if not Result and Assigned(lpTargetHandle) then
+    lpTargetHandle^ := 0;
+end;
 
 var
   AsyncPipeCounter: Integer = 0;
@@ -208,11 +258,8 @@ var
 begin
   Result := False;
 
-  if (@hReadPipe = nil) or (@hWritePipe = nil) then
-  begin
-    SetLastError(ERROR_INVALID_PARAMETER);
-    Exit;
-  end;
+  hReadPipe := 0;
+  hWritePipe := 0;
 
   if nSize = 0 then
     nSize := 4096;
@@ -242,6 +289,9 @@ begin
 
   Result := True;
 end;
+
+{$REGION 'Utility functions'}
+
 
 {$REGION 'Helper classes'}
 

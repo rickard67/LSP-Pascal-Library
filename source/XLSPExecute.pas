@@ -255,30 +255,35 @@ begin
   SecurityAttributes.lpSecurityDescriptor := nil;
   SecurityAttributes.bInheritHandle := True;
 
+
+  StdInWritePipe := 0;
+  ReadHandle := 0;
+  WriteHandle := 0;
+  try
   // Create pipe for writing
-  if not CreatePipe(StdInReadPipe, StdInWriteTmpPipe, @SecurityAttributes, 0) then
-    RaiseLastOSError;
-  if not  DuplicateHandle(GetCurrentProcess, StdInWriteTmpPipe, GetCurrentProcess,
-    @StdInWritePipe, 0, False, DUPLICATE_SAME_ACCESS or DUPLICATE_CLOSE_SOURCE) then
-  begin
-    CloseHandle(StdInReadPipe);
-    CloseHandle(StdInWriteTmpPipe);
-    RaiseLastOSError;
-  end;
+    if not SafeCreatePipe(StdInReadPipe, StdInWriteTmpPipe, @SecurityAttributes, 0) then
+      RaiseLastOSError;
 
-  // Create async pipe for reading stdout
-  if not CreateAsyncPipe(ReadHandle, WriteHandle, @SecurityAttributes, BUFFER_SIZE) then
-  begin
-    CloseHandle(StdInReadPipe);
-    RaiseLastOSError;
-  end;
+    if not SafeDuplicateHandle(GetCurrentProcess, StdInWriteTmpPipe, GetCurrentProcess,
+      @StdInWritePipe, 0, False, DUPLICATE_SAME_ACCESS)
+    then
+      RaiseLastOSError;
 
-  // Create async pipe for reading stderror
-  if not CreateAsyncPipe(ErrorReadHandle, ErrorWriteHandle, @SecurityAttributes, BUFFER_SIZE) then
-  begin
-    CloseHandle(StdInReadPipe);
-    CloseHandle(WriteHandle);
-    RaiseLastOSError;
+    // Create async pipe for reading stdout
+    if not CreateAsyncPipe(ReadHandle, WriteHandle, @SecurityAttributes, BUFFER_SIZE) then
+      RaiseLastOSError;
+
+    // Create async pipe for reading stderror
+    if not CreateAsyncPipe(ErrorReadHandle, ErrorWriteHandle, @SecurityAttributes, BUFFER_SIZE) then
+      RaiseLastOSError;
+  except
+    SafeCloseHandle(StdInReadPipe);
+    SafeCloseHandle(StdInWriteTmpPipe);
+    SafeCloseHandle(StdInWritePipe);
+    SafeCloseHandle(ReadHandle);
+    SafeCloseHandle(WriteHandle);
+
+    raise;
   end;
 
   try
@@ -293,22 +298,19 @@ begin
       hStdError :=  ErrorWriteHandle;
     end;
 
-    // Make strings writable
-    UniqueString(FCommandLine);
-    UniqueString(FDir);
-
     // Run LSP server
-    SetCurrentDir(FDir);
-    if not CreateProcess(nil, PChar(FCommandline), nil, nil, True,
-      NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, nil, PChar(FDir),
-      StartupInfo, FProcessInformation)
-    then
-      RaiseLastOSError;
-
-    // Close handles no longer needed ASAP
-    CloseHandle(WriteHandle);  // Has been duplicated by CreateProcess
-    CloseHandle(ErrorWriteHandle);  // Has been duplicated by CreateProcess
-    CloseHandle(StdInReadPipe); // Has been duplicated by CreateProcess
+    try
+      if not CreateProcess(nil, PChar(FCommandline), nil, nil, True,
+        NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, nil, PChar(FDir),
+        StartupInfo, FProcessInformation)
+      then
+        RaiseLastOSError;
+    finally
+      // Close handles no longer needed ASAP
+      SafeCloseHandle(WriteHandle);  // Has been duplicated by CreateProcess
+      SafeCloseHandle(ErrorWriteHandle);  // Has been duplicated by CreateProcess
+      SafeCloseHandle(StdInReadPipe); // Has been duplicated by CreateProcess
+    end;
     CloseHandle(FProcessInformation.hThread); // Not needed
 
     // Asynchronous read from stdout
@@ -381,11 +383,11 @@ begin
 
     // Close all remaining handles
     GetExitCodeProcess(FProcessInformation.hProcess,FExitCode);
-    CloseHandle(FProcessInformation.hProcess);
+    SafeCloseHandle(FProcessInformation.hProcess);
   finally
-    CloseHandle(StdInWritePipe);
-    CloseHandle(ReadHandle);
-    CloseHandle(ErrorReadHandle);
+    SafeCloseHandle(StdInWritePipe);
+    SafeCloseHandle(ReadHandle);
+    SafeCloseHandle(ErrorReadHandle);
   end;
 
   if Assigned(FOnExit) then
