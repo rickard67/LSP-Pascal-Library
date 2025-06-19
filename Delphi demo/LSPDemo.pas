@@ -160,7 +160,7 @@ begin
 
   sz := ExtractFileDir(Application.ExeName) + '\LSPLog.txt';
   FLSPClient.LogFileName := sz;
-  FLSPClient.LogToFile := True;
+  FLSPClient.LogItems := [liServerMessages, liClientRPCMessages, liServerMessages];
 
   FX := 0;
   FY := 0;
@@ -351,7 +351,7 @@ end;
 procedure TLSPDemoForm.OnShutdown(Sender: TObject);
 begin
   // Shutdown was successful. Send exit notification to close the server.
-  (Sender as TLSPClient).NotifyServer(lspExit);
+  (Sender as TLSPClient).SendNotification(lspExit);
 end;
 
 procedure TLSPDemoForm.OnWorkspaceApplyEdit(Sender: TObject; const value: TLSPApplyWorkspaceEditParams;
@@ -592,7 +592,7 @@ begin
         end, 100) then
       begin
         Label1.Caption := item.detail;
-        Label2.Caption := TLSPMarkupContent.FromJsonRaw(item.documentation).value;
+        Label2.Caption := item.documentationMarkup.value;
       end;
     end;
   end;
@@ -834,7 +834,7 @@ begin
   end;
 
   // Send request to server
-  FLSPClient.NotifyServer(lspDidChangeTextDocument, '', params);
+  FLSPClient.SendNotification(lspDidChangeTextDocument, '', params);
 
   if syncKind = TLSPTextDocumentSyncKindRec.Incremental then
     params.contentChanges := [];  // To avoid double freeing the changes
@@ -861,7 +861,7 @@ begin
     params.textDocument.text := Memo1.text;
   end;
 
-  FLSPClient.NotifyServer(lspDidOpenTextDocument, '', params);
+  FLSPClient.SendNotification(lspDidOpenTextDocument, '', params);
 end;
 
 procedure TLSPDemoForm.SendDidSaveDocumentToServer(const filename: string);
@@ -877,7 +877,7 @@ begin
   if FLSPClient.IncludeText(lspDidSaveTextDocument, False) then
     params.text := Memo1.text;
 
-  FLSPClient.NotifyServer(lspDidSaveTextDocument, '', params);
+  FLSPClient.SendNotification(lspDidSaveTextDocument, '', params);
 end;
 
 procedure TLSPDemoForm.SendHoverRequest(const filename: string);
@@ -1043,7 +1043,7 @@ begin
   begin
     item := FCompletionList[0];
     Label1.Caption := item.detail;
-    Label2.Caption := TLSPMarkupContent.FromJsonRaw(item.documentation).value;
+    Label2.Caption := item.documentationMarkup.value;
   end;
 end;
 
