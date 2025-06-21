@@ -2,6 +2,8 @@
  Unit Name: XLSPUtils
  Author:    PyScripter
  Purpose: Support types and functions for LSP Client
+
+  Usage allowed under the restrictions of the MIT license
 -----------------------------------------------------------------------------}
 
 unit XLSPUtils;

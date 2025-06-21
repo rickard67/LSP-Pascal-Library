@@ -1,20 +1,13 @@
 (*
  *                       Pascal LSP Client
  *
- * Usage allowed under the restrictions of the Lesser GNU General Public License
- * or alternatively the restrictions of the Mozilla Public License 1.1
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied.
+ * Usage allowed under the restrictions of the MIT license.
  *
  * Unit owner : Rickard Johansson <support@rj-texted.se>
  * Web site   : https://www.rj-texted.se
  * Github     : https://github.com/rickard67/LSP-Pascal-Library
  *
- * Embarcadero Technologies, Inc is not permitted to use or redistribute
- * this source code without explicit permission.
- *
- * Copyright © 2025 Rickard Johansson. All rights reserved.
+ * Copyright (c) 2025 Rickard Johansson. All rights reserved.
  *
 *)
 
