@@ -1,41 +1,15 @@
-﻿# Delphi/Pascal LSP Client v2.x
+# Delphi/Pascal LSP Client
 
-A language server protocol client written in Pascal (Delphi).
+A language server protocal client written in Pascal (Delphi).
 
- ## About this new version
- The component now uses serialization, instead of manually parsing the JSON code.
- This change means it only works in Delphi 11.3 or later.
- 
- Version 1.x is still available in a separate fork "LSP-Pascal_Library-(xsuperobject)". 
- 
- How to update to this new version [update help](docs/Migrate_to_new_version.md).
- 
- ---
- This was added by PyScripter (https://github.com/pyscripter)
-   - Replaced XSuperObject with System.JSON and System.JSONSerializers.  
-   - Use System.Net.Socket. The client can act as both socket client or server.
-   - Fixed warnings and hints
-   - Fixed numerous memory leaks
-   - Improvements to XLSPExecute
-       - Asynchronous reading
-       - Avoid calling Synchronize and Sleep
-   - Allow for handling server responses with anonymous methods.
-   - The code base was enormously streamlined. (e.g. XSLPFunction down to 1400 from 7000+ lines)
-   - Removed unnecessary aliases in XLSPTypes
-   - Refactored error handling in XLSP functions
-   - Separated the handling of requests, notifications and responses
-   - Unique request id passed to the request handlers
----
-
-## Content
+# Content
 
 - [Basic Information](#basic-information)
 - [Demo](#demo)
 - [Using the Library](#using-the-library)
    - [Running the LSP server](#running-the-lsp-server)
    - [Send requests and notifications to the server](#send-requests-and-notifications-to-the-server)
-   - [SendRequest with anonymous methods](###SendRequest-with-anonymous-methods)
-   - [Notifications or responces sent from the server](#notifications-or-responses-sent-from-the-server)
+   - [Notifications or responces sent from the server](#notifications-or-responces-sent-from-the-server)
 - [Initialize](#initialize)
 - [Register/Unregister Capability](#registerunregister-capability)
 - [Closing or exiting the server](#closing-or-exiting-the-server)
@@ -133,8 +107,8 @@ This component was created for use in RJ TextEd to add language server support. 
 tested with several language servers (https://www.rj-texted.se/Forum/viewforum.php?f=23).
 
 The client component support both stdio and tcp/ip socket communication. When communicating
-over a socket you need to provide the address and port at which the language server is 
-listening.
+over a socket - the client act as a server, which is why you must add a port as an argument
+when starting the server. E.g. server.exe --port=5000.
 
 The component handle all features found in the 3.17.x version of the language server
 protocol.
@@ -175,98 +149,36 @@ Use the function below to run a server.
 
 ``` LSPClient1.RunServer(const ACommandline, ADir: string); ```
 
-Now you can use SendRequest(lspInitialize) to initialize the server and start
-communicating. 
 
-You can also use an event to make sure the server is properly started before you
-send a request.
+### Send requests and notifications to the server
 
-```pascal 
-  LSPClient1.OnServerConnected := OnServerConnected;
-  
-  procedure TMainForm.OnServerConnected(Sender: TObject);
-  begin
-    if Sender is TLSPClient then
-      TLSPClient(Sender).SendRequest(lspInitialize);
-  end;
-```
-
-
-### Send requests to the server
-
-Use the function "SendRequest" to send a request  to the server. The first
+Use the function "SendRequest" to send a request or notification to the server. The first
 argument indicate the type of request and automatically set the "method" in the Json
 request that is sent to the server.
 
 The function is declared as:
 
-```pascal
-function TLSPClient.SendRequest(const lspKind: TLSPKind;
-  const method: string = ''; params: TLSPBaseParams = nil;
-  const paramJSON: string = ''): Integer;
 ```
-The return value is a unique id you can use to keep track of the request,
-in case ther are multiple outstanding requests of the same type.
-
-### RequestErrorHandling
-
-If a request fails for whatever reason the client triggers a request error event.  The client
-does not trigger a response handling event in that case.
-
-```pascal
-procedure HandleResponseError(Sender: TObject; const id, errorCode: Integer; const errorMsg: string; retriggerRequest: Boolean = False)
-
-FLSPClient1.OnResponseError := HandlResponseError;
+procedure TLSPClient.SendRequest(const lspKind: TLSPKind; const method: string = ''; 
+    const params: TLSPBaseParams = nil; const paramJSON: string = '');
 ```
 
-In the implementation of HandleResponseError you can use GetKindFromId to get the TLSPKind
-of the failed request
+### Notifications or responces sent from the server
+All responces and notifications are handled as events. You can check for an error
+in the event. Error codes are stored in TLSPErrorCodes as enumerated types values,
+as seen below.
 
-```pascal
-var Kind := TLSPKind(GetKindFromId(Id));
 ```
-
-### Send notifications to the server
-
-Use the function "SendNotification" to send a notification to the server. The first
-argument indicate the type of notification and automatically set the "method" in the Json
-request that is sent to the server.
-
-The function is declared as:
-
-```pascal
-procedure TLSPClient.SendNotification(const lspKind: TLSPKind; const method: string;
-  const params: TLSPBaseParams; const paramJSON: string);
-```
-
-### Memory management
-
-When you create a TLSPBaseParams object to pass to SendRequest or SendNotification you
-need to free it after you call the the Sent method. XLSPUtils provides a smart 
-pointer record to automate the object destruction and avoid using  `try finally`.
-You use it like this:
-```pascal
-var
-  Params: TLSPDidChangeTextDocumentParams;
-begin
-  Params := TSmartPtr.Make(TLSPDidChangeTextDocumentParams.Create)();
-```
-
-### Notifications or responses sent from the server
-All responses and notifications are normally handled as events. But you can also
-handle server responses with anonymous methods.
-
-```pascal
 // The event catches the response from the server
 FLSPClient1.OnOnDocumentDiagnostic := OnDocumentDiagnostic1;
 
-procedure OnOnDocumentDiagnostic1(Sender: TObject; const Id: Integer; const kind: string;
-   const resultId: string; const items: TArray<TLSPDiagnostic>; 
-   const retriggerRequest: Boolean);
+procedure OnOnDocumentDiagnostic1(Sender: TObject; const kind: string; const resultId: string; 
+    const items: TArray<TLSPDiagnostic>; const errorCode: Integer; const errorMessage: string;
+    const retriggerRequest: Boolean);
 begin
   if kind = 'unchanged' then Exit;
   
-  if retriggerRequest then
+  if (ErrorCode = Integer(TLSPErrorCodes.ServerCancelled)) and retriggerRequest then
   begin
     // Re-trigger the document diagnostic request
     ...
@@ -276,38 +188,6 @@ begin
 end;
 ``` 
 
-### SendRequest with anonymous methods
-
-The handler is executed in the main thread using SendRequest().
-  
-Example:
-```pascal
-  FLSPClient.SendRequest(lspCompletionItemResolve, ResolveParams,
-  procedure(Json: TJSONObject)
-  var
-    Item: TLSPCompletionItem;
-  begin
-    if ResponseError(Json) then Exit;
-    Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
-    Memo1.Lines.Add(TSerializer.Serialize(item));
-  end);
-```   
-
-The handler is executed in the Server thread using SendSyncRequest().
-SendSyncRequest blocks until the server responds or a timeout expires.
-  
-Example:
-```pascal
- var Item: TLSPCompletionItem;
- if FLSPClient.SendSyncRequest(lspCompletionItemResolve, ResolveParams,
- procedure(Json: TJSONObject)
- begin
-   if ResponseError(Json) then Exit;
-   Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
- end, 400) then
-   Memo1.Lines.Add(TSerializer.Serialize(Item));
-```
-
 ## Initialize
 
 To communicate with the server you must first send an initialize request. The request 
@@ -316,7 +196,7 @@ and notifications the client can handle.
 
 You should always handle the following events in your application.
 
-```pascal 
+``` 
   LSPClient1.OnInitialize := OnInitialize1;
   LSPClient1.OnInitialized := OnInitialized1;
 ```
@@ -325,7 +205,7 @@ You set the client capabilities in the OnInitialize1 event.
 
 Send the initialize request to the server:
 
-```pascal
+```
 LSPClient1.SendRequest(lspInitialize);
 
 procedure OnInitialize1(Sender: TObject; var value: TLSPInitializeParams);
@@ -371,7 +251,7 @@ You should check LSPClient1.ServerCapablitities before sending requests and noti
 to make sure the server can handle them.
 
 E.g. in a SendWillSaveNotification() function you could add
-```pascal
+``` 
 if not LClient.IsRequestSupported(lspWillSaveTextDocument) then Exit;
 
 // Send request
@@ -395,13 +275,13 @@ Register/UnRegister capability requests are stored in the LSP client, but can be
 handled by the program using events.
 
 Use the method below to find a registered capability. 
-```pascal
+```
 FindDynamicCapability(const method: string): TLSPTextDocumentRegistrationOptions
 ```
 Test if the returned object is of the correct type
 and typecast it (see below).
 
-```pascal
+``` 
 var
   i: Integer;
   watcher: TLSPFileSystemWatcher;
@@ -441,7 +321,7 @@ end;
 
 It is possible to handle "register capability requests" inside the program directly.
 
-```pascal
+```
 FLSPClient.OnRegisterCapability := OnRegisterCapability1;
 FLSPClient.OnUnRegisterCapability := OnUnRegisterCapability1;
 
@@ -495,7 +375,7 @@ The LSPClient1.CloseServer function handles that for you. If the server does not
 the client will close the server for you. You can also use LSPClient1.ExitServer(True)
 if you are in a hurry and want to close the server down quickly.
 
-```pascal 
+``` 
 // Close the server gracefully
 LSPClient.CloseServer;
 
@@ -514,10 +394,10 @@ OnShutdown event - send an exit notification. But you can skip the shutdown requ
 and only send the exit notification. The return code from the server should then
 be 1.
 
-```pascal
+```
 FLSPClient.SendRequest(lspShutdown); (or FLSPClient1.CloseServer;)
 
-procedure OnShutdown(Sender: TObject);
+procedure OnShutdown(Sender: TObject; const errorCode: Integer; const errorMessage: string);
 begin
   if errorMessage <> '' then
   begin
@@ -539,8 +419,8 @@ A notification to ask the server to exit its process.
 The return code from the server should be 0, if you first sent a shutdown request.
 Otherwise it should return 1.
 
-```pascal
-FLSPClient.NotifyServer(lspExit); (or LSPClient.ExitServer(True);)
+```
+FLSPClient.SendRequest(lspExit); (or LSPClient.ExitServer(True);)
 
 procedure OnExit(Sender: TObject; exitCode: Integer; const bRestartServer: Boolean);
 var
@@ -570,17 +450,17 @@ notification.
 The client must send didOpen, didChange and didClose notifications to the server. It
 should send didSave (and maybe willSave if the server wants it) as well.
 
-```pascal
+```
 var
   params: TLSPDidOpenTextDocumentParams;
 begin
-  params := TSmartPtr.Make(TLSPDidOpenTextDocumentParams.Create)();
+  params := TLSPDidOpenTextDocumentParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.php');
   params.textDocument.version := 1;
   params.textDocument.languageId := 'php';
   params.textDocument.text := Memo1.text;
 
-  FLSPClient1.SendNotification(lspDidOpenTextDocument, '', params);
+  FLSPClient1.SendRequest(lspDidOpenTextDocument, '', params);
  ```
  Language identifiers are listed at the end of this document.
  
@@ -593,7 +473,7 @@ The document change notification is sent from the client to the server to signal
 to a text document. Before a client can change a text document it must claim ownership of 
 its content using the textDocument/didOpen notification above.
 
-```pascal
+```
 var
   ext: string;
   syncKind: Integer;
@@ -603,7 +483,7 @@ begin
   syncKind := FLSPClient1.GetSyncKind(ext);
   if synckind = TLSPTextDocumentSyncKindRec.None then Exit;
   
-  params := TSmartPtr.Make(TLSPDidChangeTextDocumentParams.Create)();
+  params := TLSPDidChangeTextDocumentParams.Create;
   params.textDocument := TLSPVersionedTextDocumentIdentifier.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.textDocument.version := version + 1;
@@ -618,12 +498,12 @@ begin
   end
   else if syncKind = TLSPTextDocumentSyncKindRec.Full then
   begin
-    content := TSmartPtr.Make(TLSPBaseTextDocumentContentChangeEvent.Create)();
+    content := TLSPBaseTextDocumentContentChangeEvent.Create;
     content.text := AMemo.Lines.Text;
     params.contentChanges.Add(content);
   end;
   
-  FLSPClient1.SendNotification(lspDidChangeTextDocument, '', params);
+  FLSPClient1.SendRequest(lspDidChangeTextDocument, '', params);
 end;
 ```
 
@@ -633,14 +513,14 @@ The document close notification is sent from the client to the server when the d
 got closed in the client. The document’s master now exists where the document’s Uri 
 points to.
 
-```pascal
+```
 var
   params: TLSPDidCloseTextDocumentParams;
 begin
-  params := TSmartPtr.Make(TLSPDidCloseTextDocumentParams.Create)();
+  params := TLSPDidCloseTextDocumentParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.c');
   
-  LClient.SendNotification(lspDidCloseTextDocument, '', params); 
+  LClient.SendRequest(lspDidCloseTextDocument, '', params); 
 end;
 ```
 
@@ -649,13 +529,13 @@ end;
 The document save notification is sent from the client to the server when the document 
 was saved in the client.
 
-```pascal
+```
 var
   params: TLSPDidSaveTextDocumentParams;
 begin
   if not LClient.IsRequestSupported(lspDidSaveTextDocument) then Exit;
   
-  params := TSmartPtr.Make(TLSPDidSaveTextDocumentParams.Create)();
+  params := TLSPDidSaveTextDocumentParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.c');
   
   // Optionally include the content when saved. Depends on the includeText option value.
@@ -664,7 +544,7 @@ begin
     params.text := Memo1.Lines.Text;
   end;
   
-  LClient.SendNotification(lspDidSaveTextDocument, '', params); 
+  LClient.SendRequest(lspDidSaveTextDocument, '', params); 
 end;
 ```
 
@@ -673,19 +553,19 @@ end;
 The document will save notification is sent from the client to the server before the 
 document is actually saved.
 
-```pascal
+```
 var
   i: Integer;
   params: TLSPWillSaveTextDocumentParams;
 begin
   if not LClient.IsRequestSupported(lspWillSaveTextDocument) then Exit;
   
-  params := TSmartPtr.Make(TLSPWillSaveTextDocumentParams.Create)();
+  params := TLSPWillSaveTextDocumentParams.Create;
 
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.reason := 1;
   
-  LClient.SendNotification(lspWillSaveTextDocument, '', params);
+  LClient.SendRequest(lspWillSaveTextDocument, '', params);
 end;
 ```
 
@@ -702,7 +582,7 @@ The document will save request is sent from the client to the server before the 
 is actually saved. The request can return an array of TextEdits which will be applied to 
 the text document before it is saved.
 
-```pascal
+```
 FLSPClient1.OnWillSaveWaitUntilTextDocument := OnWillSaveWaitUntilTextDocument1;
 
 var
@@ -711,7 +591,7 @@ var
 begin
   if not LClient.IsRequestSupported(lspWillSaveWaitUntilTextDocument) then Exit;
   
-  params := TSmartPtr.Make(TLSPWillSaveTextDocumentParams.Create)();
+  params := TLSPWillSaveTextDocumentParams.Create;
 
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.reason := 1;
@@ -754,13 +634,13 @@ opened. It is only sent by a client if the server requested the 'notebook' synch
 in its notebookDocumentSync capability. Otherwise a standard textDocument/didOpen notification
 should be sent.
 
-```pascal
+```
 var
   params: TLSPDidOpenNotebookDocumentParams;
   cell: TLSPNotebookCell;
 begin
   if not LClient.IsRequestSupported(lspDidOpenNotebookDocument) then Exit;
-  params := TSmartPtr.Make(TLSPDidOpenNotebookDocumentParams.Create)();
+  params := TLSPDidOpenNotebookDocumentParams.Create;
   params.notebookDocument := TLSPNotebookDocument.Create;
   params.notebookDocument.uri := FilePathToUri('c:\source\foo.notebook');
   params.notebookDocument.version := 1;
@@ -774,7 +654,7 @@ begin
   cell.document := FilePathToUri('c:\source\hi.py');
   params.notebookDocument.cells[1] := cell;
 
-  FLSPClient1.SendNotification(lspDidOpenNotebookDocument, '', params);
+  FLSPClient1.SendRequest(lspDidOpenNotebookDocument, '', params);
  ```
  
 ### DidChangeNotebookDocument Notification
@@ -784,7 +664,7 @@ changes. It is only sent by a client if the server requested the 'notebook' sync
 in its notebookDocumentSync capability. Otherwise a standard textDocument/didChange notification
 should be sent.
 
-```pascal
+```
 var
   ext: string;
   syncKind: Integer;
@@ -795,7 +675,7 @@ begin
   syncKind := FLSPClient1.GetSyncKind(ext);
   if synckind = TLSPTextDocumentSyncKindRec.None then Exit;
   
-  params := TSmartPtr.Make(TLSPDidChangeNotebookDocumentParams.Create)();
+  params := TLSPDidChangeNotebookDocumentParams.Create;
   params.notebookDocument.uri := FilePathToUri('c:\source\foo.notebook');
   params.notebookDocument.version := version + 1;
   Inc(version);
@@ -809,12 +689,12 @@ begin
   end
   else if syncKind = TLSPTextDocumentSyncKindRec.Full then
   begin
-    content := TSmartPtr.Make(TLSPBaseTextDocumentContentChangeEvent.Create)();
+    content := TLSPBaseTextDocumentContentChangeEvent.Create;
     content.text := AMemo.Lines.Text;
     params.change.cells.textContent.changes.Add(content);
   end;
   
-  FLSPClient1.SendNotification(lspDidChangeNotebookDocument, '', params);
+  FLSPClient1.SendRequest(lspDidChangeNotebookDocument, '', params);
 end;
 ```
 
@@ -825,14 +705,14 @@ is saved. It is only sent by a client if the server requested the 'notebook' syn
 in its notebookDocumentSync capability. Otherwise a standard textDocument/didSave notification
 should be sent.
 
-```pascal
+```
 var
   params: TLSPDidSaveNotebookDocumentParams;
 begin
-  params := TSmartPtr.Make(TLSPDidSaveNotebookDocumentParams.Create)();
+  params := TLSPDidSaveNotebookDocumentParams.Create;
   params.notebookDocument.uri := FilePathToUri('c:\source\foo.notebook');
   
-  LClient.SendNotification(lspDidSaveNotebookDocument, '', params); 
+  LClient.SendRequest(lspDidSaveNotebookDocument, '', params); 
 end;
 ```
 
@@ -843,11 +723,11 @@ is closed. It is only sent by a client if the server requested the 'notebook' sy
 in its notebookDocumentSync capability. Otherwise a standard textDocument/didClose notification
 should be sent.
 
-```pascal
+```
 var
   params: TLSPDidCloseNotebookDocumentParams;
 begin
-  params := TSmartPtr.Make(TLSPDidCloseNotebookDocumentParams.Create)();
+  params := TLSPDidCloseNotebookDocumentParams.Create;
   params.notebookDocument.uri := FilePathToUri('c:\source\foo.notebook');
   
   // The text documents that represent the content
@@ -855,7 +735,7 @@ begin
   SetLength(params.cellTextDocuments,1);
   params.cellTextDocuments[0].uri := FilePathToUri('c:\source\foo.py');  
   
-  LClient.SendNotification(lspDidCloseNotebookDocument, '', params); 
+  LClient.SendRequest(lspDidCloseNotebookDocument, '', params); 
 end;
 ```
 
@@ -872,10 +752,9 @@ properties. Since 3.16.0 the client can signal that it can resolve more properti
 
 The response from the server is handled in the OnCompletion() event.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnCompletion := OnCompletion1;
-FCompletionList := TList<TLSPCompletionItem>.Create;
 
 var
   params: TLSPCompletionParams;
@@ -886,7 +765,7 @@ begin
   // a completion request.
   if not FLSPClient1.Initialized then Exit;
   
-  params := TSmartPtr.Make(TLSPCompletionParams.Create)();
+  params := TLSPCompletionParams.Create;
   
   // Text document and position
   params.textDocument.uri := FilePathToUri('c:\source.foo.c');
@@ -901,7 +780,7 @@ procedure OnCompletion1(Sender: TObject; const list: TLSPCompletionList; const e
 var
   i: Integer;
   s: string;
-  item: TLSPCompletionItem;
+  item,obj: TLSPCompletionItem;
 begin
   // ---------------------------------------------------------------------------
   // Item defaults ?
@@ -927,16 +806,15 @@ begin
     // Copy objects to ensure the object is still available if we need to send
     // a resolve request to the server.
     item := list.items[i];
-    
-    // If you copy item to an object make sure you copy the "data" field
-    //
-    // obj := TMyCompletionObject.Create;
-    // obj.&label := item.&label;
-    // obj.kind := item.kind;
-    // obj.detail := item.detail;
-    // obj.documentationMarkup := item.documentationMarkup;
-    // obj.data := item.data; // Always include this otherwise CompletionResolve will not work.
-    FCompletionList.Add(item);
+    s := item.slabel;
+
+    obj := TLSPCompletionItem.Create;
+    obj.slabel := item.slabel;
+    obj.kind := item.kind;
+    obj.detail := item.detail;
+    obj.documentation := item.documentation;
+    obj.data := item.data; // Always include this otherwise CompletionResolve will not work.
+    FCompletionList.AddObject(s,obj);
   end;
   UpdateCompletionList;
 end;
@@ -949,32 +827,29 @@ for a given completion item. This is typically used to display additional inform
 for the selected item in an auto completion list.
 
 The completion request will be quicker since the server can skip some information.
-This is why you use completion item resolve requests to receive the information for 
+This is why you use completion item resolve requests to recieve the information for 
 a selected item (when needed).
 
 The response is handled in the OnCompletionItemResolve() event.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnCompletionItemResolve := OnCompletionItemResolve1;
 
 var
   item: TLSPCompletionItem;
-  ResolveParams: TLSPCompletionItemResolveParams;
 begin
   // Make sure the request is supported
   if not FLSPClient1.IsRequestSupported(lspCompletionItemResolve) then Exit;
   
   // Get the item to resolve from our completion list
-  item := FCompletionList[index];  
-  ResolveParams := TSmartPtr.Make(TLSPCompletionItemResolveParams.Create)();
-  ResolveParams.completionItem := item;
+  item := TLSPCompletionItem(FCompletionList.Objects[index]);  
   
-  FLSPClient1.SendRequest(lspCompletionItemResolve, '', ResolveParams);
+  FLSPClient1.SendRequest(lspCompletionItemResolve, '', item);
 end;
 
-procedure OnCompletionItemResolve1(Sender: TObject; const Id: Integer; 
-  const item: TLSPCompletionItem);
+procedure OnCompletionItemResolve1(Sender: TObject; const item: TLSPCompletionItem; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
 begin
@@ -990,7 +865,7 @@ end;
 The hover request is sent from the client to the server to request hover information 
 at a given text document position.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnHover := OnHover1;
 
@@ -999,7 +874,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspHover) then Exit;
   
-  params := TSmartPtr.Make(TLSPHoverParams.Create)();
+  params := TLSPHoverParams.Create;
   params.textDocument.uri := FilePathToUri(FFileName);
   params.position.line := 6;
   params.position.character := 8;
@@ -1007,7 +882,8 @@ begin
   FLSPClient1.SendRequest(lspHover, '', params);
 end;
 
-procedure OnHover1(Sender: TObject; const Id: Integer; const value: TLSPHover);
+procedure OnHover1(Sender: TObject; const value: TLSPHover; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
 begin
@@ -1048,7 +924,7 @@ information at a given cursor position. Usually used to display parameter hints.
 There may be several signatures if the function is overloaded and comes with different 
 parameters.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnSignatureHelp := OnSignatureHelp1;
 
@@ -1057,14 +933,15 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspSignatureHelp) then Exit;
   
-  params := TSmartPtr.Make(TLSPSignatureHelpParams.Create)();
+  params := TLSPSignatureHelpParams.Create;
   params.position.line := 6;
   params.position.character := 8;
   
   FLSPClient1.SendRequest(lspSignatureHelp, '', params);
 end;
 
-procedure OnSignatureHelp1(Sender: TObject; const Id: Integer; const value: TLSPSignatureHelp);
+procedure OnSignatureHelp1(Sender: TObject; const value: TLSPSignatureHelp; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i,j: Integer;
   ...
@@ -1072,13 +949,13 @@ begin
   // Process one or more signatures (there may be overloaded functions with different parameters).
   for i := 0 to Length(value.signatures) - 1 do
   begin
-    sLabel := value.signatures[i].&label;
+    sLabel := value.signatures[i].slabel;
     documentationKind := value.signatures[i].documentation.kind;
     documentationValue := value.signatures[i].documentation.value;
     
     for j := 0 to Length(value.signatures[i].parameters) - 1 do
     begin
-      arr[j].sLabel := value.signatures[i].parameters[j].&label;
+      arr[j].sLabel := value.signatures[i].parameters[j].slabel;
       arr[j].documentationKind := value.signatures[i].documentation.kind;
       arr[j].documentationValue := value.signatures[i].documentation.value;
       ...
@@ -1106,7 +983,7 @@ generated by the language server.
 
 #### OnPublishDiagnostics
 
-```pascal
+```
 procedure OnPublishDiagnostics1(Sender: TObject; const uri: string; const version: Cardinal; 
     const diagnostics: TArray<TLSPDiagnostic>);
 var
@@ -1117,10 +994,10 @@ begin
   for i := 0 to Length(diagnostics) - 1 do
   begin
     // Process information in the array
-    item := TSmartPtr.Make(TDiagnosticItem.Create)();
+    item := TDiagnosticItem.Create;
     item.Range := diagnostics[i].range;
     item.Severity := diagnostics[i].severity;
-    item.MessageStr := diagnostics[i].&message;
+    item.MessageStr := diagnostics[i].messageString;
     
     case item.Severity of
       1: ws := '[Error]';
@@ -1149,7 +1026,7 @@ at which point in time.
 The text document diagnostic request is sent from the client to the server to ask
 the server to compute the diagnostics for a given document.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnOnDocumentDiagnostic := OnDocumentDiagnostic1;
 
@@ -1159,14 +1036,15 @@ begin
   // Make sure the request is supported
   if not FLSPClient1.IsRequestSupported(lspDocumentDiagnostic) then Exit;
   
-  item := TSmartPtr.Make(TLSPDocumentDiagnosticParams.Create)();
+  item := TLSPDocumentDiagnosticParams.Create;
   item.textDocument.uri := FilePathToUri(FFileName);  
   
   FLSPClient1.SendRequest(lspDocumentDiagnostic, '', item);
 end;
 
-procedure OnDocumentDiagnostic1(Sender: TObject; const Id: Integer; const kind: string; 
-  const resultId: string; const items: TArray<TLSPDiagnostic>);
+procedure OnDocumentDiagnostic1(Sender: TObject; const kind: string; const resultId: string; 
+    const items: TArray<TLSPDiagnostic>; const errorCode: Integer; const errorMessage: string;
+    const retriggerRequest: Boolean);
 var
   i: Integer;
   s,ws: string;
@@ -1183,10 +1061,10 @@ begin
   for i := 0 to Length(items) - 1 do
   begin
     // Process information in the array
-    item := TSmartPtr.Make(TDiagnosticItem.Create)();
+    item := TDiagnosticItem.Create;
     item.Range := items[i].range;
     item.Severity := items[i].severity;
-    item.MessageStr := items[i].&message;
+    item.MessageStr := items[i].messageString;
     
     case item.Severity of
       1: ws := '[Error]';
@@ -1212,7 +1090,7 @@ server to compute workspace wide diagnostics which previously where pushed from 
 server to the client. In contrast to the document diagnostic request the workspace
 request can be long running and is not bound to a specific workspace or document state.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnOnWorkspaceDiagnostic := OnWorkspaceDiagnostic1;
 
@@ -1222,13 +1100,13 @@ begin
   // Make sure the request is supported
   if not FLSPClient1.IsRequestSupported(lspWorkspaceDiagnostic) then Exit;
   
-  item := TSmartPtr.Make(TLSPWorkspaceDiagnosticParams.Create)(); 
+  item := TLSPWorkspaceDiagnosticParams.Create; 
   
   FLSPClient1.SendRequest(lspWorkspaceDiagnostic, '', item);
 end;
 
-procedure OnWorkspaceDiagnostic1(Sender: TObject; const Id: Integer; 
-  reports: TArray<TLSPWorkspaceDocumentDiagnosticReport>);
+procedure OnWorkspaceDiagnostic1(Sender: TObject; reports: TArray<TLSPWorkspaceDocumentDiagnosticReport>;
+    const errorCode: Integer; const errorMessage: string; const retriggerRequest: Boolean);
 var
   i,j,ver: Integer;
   s,sz,ws: string;
@@ -1250,10 +1128,10 @@ begin
     // Process diagnostics in the array
     for j := 0 to Length(reports[i].items) - 1 do
     begin
-      item := TSmartPtr.Make(TDiagnosticItem.Create)();
+      item := TDiagnosticItem.Create;
       item.Range := reports[i].items[j].range;
       item.Severity := reports[i].items[j].severity;
-      item.MessageStr := reports[i].items[j].&message;
+      item.MessageStr := reports[i].items[j].messageString;
         
       case item.Severity of
         1: ws := '[Error]';
@@ -1279,7 +1157,7 @@ Servers can use it to ask clients to refresh all needed document and workspace
 diagnostics. This is useful if a server detects a project wide configuration
 change which requires a re-calculation of all diagnostics.
 
-```pascal
+```
 // Set event handler to be able to recieve refresh requests
 LSPClient1.OnWorkspaceDiagnosticRefresh := OnWorkspaceDiagnosticRefresh1;
 
@@ -1288,7 +1166,7 @@ var
   item: TLSPWorkspaceDiagnosticParams;
 begin
   // Pull for new diagnostics.
-  item := TSmartPtr.Make(TLSPWorkspaceDiagnosticParams.Create();  
+  item := TLSPWorkspaceDiagnosticParams.Create;  
   FLSPClient1.SendRequest(lspWorkspaceDiagnostic, '', item);
 end;
 
@@ -1307,7 +1185,7 @@ event. See OnProgress for example.
 The goto declaration request is sent from the client to the server to resolve the 
 declaration location of a symbol at a given text document position.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnGotoDeclaration := OnGotoDeclaration1;
 
@@ -1316,14 +1194,15 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspGotoDeclaration) then Exit;
   
-  params := TSmartPtr.Make(TLSPDeclarationParams.Create)();
+  params := TLSPDeclarationParams.Create;
   params.position.line := 126;
   params.position.character := 10;
   
   FLSPClient1.SendRequest(lspGotoDeclaration, '', params);
 end;
 
-procedure OnGotoDeclaration1(Sender: TObject; const Id: Integer;  const value: TLSPGotoResponse)
+procedure OnGotoDeclaration1(Sender: TObject; const value: TLSPGotoResponse; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   uri: string;
@@ -1377,7 +1256,7 @@ end;
 The go to definition request is sent from the client to the server to resolve the definition 
 location of a symbol at a given text document position.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnGotoDefinition := OnGotoDefinition1;
 
@@ -1386,14 +1265,15 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspGotoDefinition) then Exit;
   
-  params := TSmartPtr.Make(TLSPDefinitionParams.Create();
+  params := TLSPDefinitionParams.Create;
   params.position.line := 102;
   params.position.character := 20;
   
   FLSPClient1.SendRequest(lspGotoDefinition, '', params);
 end;
 
-procedure OnGotoDefinition1(Sender: TObject; const Id: Integer; const value: TLSPGotoResponse);
+procedure OnGotoDefinition1(Sender: TObject; const value: TLSPGotoResponse; const errorCode: Integer; 
+    const errorMessage: string);
 begin    
   // See Goto Declaration Request for example
 end;
@@ -1404,7 +1284,7 @@ end;
 The go to implementation request is sent from the client to the server to resolve the 
 implementation location of a symbol at a given text document position.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnGotoImplementation := OnGotoImplementation1;
 
@@ -1413,14 +1293,15 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspGotoImplementation) then Exit;
   
-  params := TSmartPtr.Make(TLSPImplementationParams.Create)();
+  params := TLSPImplementationParams.Create;
   params.position.line := 11;
   params.position.character := 3;
   
   FLSPClient1.SendRequest(lspGotoImplementation, '', params);
 end;
 
-procedure OnGotoImplementation1(Sender: TObject; const Id: Integer; const value: TLSPGotoResponse);
+procedure OnGotoImplementation1(Sender: TObject; const value: TLSPGotoResponse; const errorCode: Integer; 
+    const errorMessage: string);
 begin    
   // See Goto Declaration Request for example
 end;
@@ -1431,7 +1312,7 @@ end;
 The go to type definition request is sent from the client to the server to resolve the 
 type definition location of a symbol at a given text document position.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnGotoTypeDefinition := OnGotoTypeDefinition1;
 
@@ -1440,14 +1321,15 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspGotoTypeDefinition) then Exit;
   
-  params := TSmartPtr.Make(TLSPTypeDefinitionParams.Create();
+  params := TLSPTypeDefinitionParams.Create;
   params.position.line := 12;
   params.position.character := 11;
   
   FLSPClient1.SendRequest(lspGotoTypeDefinition, '', params);
 end;
 
-procedure OnGotoTypeDefinition1(Sender: TObject; const Id: Integer; const value: TLSPGotoResponse);
+procedure OnGotoTypeDefinition1(Sender: TObject; const value: TLSPGotoResponse; const errorCode: Integer; 
+    const errorMessage: string);
 begin    
   // See Goto Declaration Request for example
 end;
@@ -1458,7 +1340,7 @@ end;
 The references request is sent from the client to the server to resolve project-wide 
 references for the symbol denoted by the given text document position.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnFindReferences := OnFindReferences1;
 
@@ -1467,7 +1349,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspReferences) then Exit;
   
-  params := TSmartPtr.Make(TLSPReferencesParams.Create();
+  params := TLSPReferencesParams.Create;
   params.position.line := 11;
   params.position.character := 3;
   params.context.includeDeclaration := True;
@@ -1475,7 +1357,8 @@ begin
   FLSPClient1.SendRequest(lspReferences, '', params);
 end;
 
-procedure OnFindReferences1(Sender: TObject; const Id: Integer; const value: TLSPFindReferencesResponse);
+procedure OnFindReferences1(Sender: TObject; const value: TLSPFindReferencesResponse;
+  const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
   LRange: TLSPRange;
@@ -1511,7 +1394,7 @@ The request uses text as the kind and is allowed to be more fuzzy than a referen
 The request support streaming (if you set a partial result token) and use the OnProgress 
 event to retrieve partial data. See OnProgress for example.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnDocumentHighlight := OnDocumentHighlight1;
 
@@ -1520,7 +1403,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspDocumentHighlight) then Exit;
   
-  params := TSmartPtr.Make(TLSPDocumentHighlightParams.Create)();
+  params := TLSPDocumentHighlightParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.position.line := 12;
   params.position.character := 11;
@@ -1528,7 +1411,8 @@ begin
   FLSPClient1.SendRequest(lspDocumentHighlight, '', params);
 end;
 
-procedure OnDocumentHighlight1(Sender: TObject; const Id: Integer; const value: TLSPDocumentHighlightResponse);
+procedure OnDocumentHighlight1(Sender: TObject; const value: TLSPDocumentHighlightResponse; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   kind: Cardinal;
@@ -1557,7 +1441,7 @@ a hierarchy of symbols found (array of TLSPDocumentSymbol) in a given text docum
 The request support streaming (if you set a partial result token) and use the OnProgress 
 event to retrieve partial data. See OnProgress for example.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnDocumentSymbols := OnDocumentSymbols1;
 
@@ -1566,13 +1450,14 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspDocumentSymbol) then Exit;
   
-  params := TSmartPtr.Make(TLSPDocumentSymbolParams.Create();
+  params := TLSPDocumentSymbolParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.java');
   
   FLSPClient1.SendRequest(lspDocumentSymbol, '', params);
 end;
 
-procedure OnDocumentSymbols1(Sender: TObject; const Id: Integer; const value: TLSPDocumentSymbolsResponse);
+procedure OnDocumentSymbols1(Sender: TObject; const value: TLSPDocumentSymbolsResponse; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   sym: TLSPDocumentSymbol;
@@ -1594,7 +1479,7 @@ The code action request is sent from the client to the server to compute command
 for a given text document and range. These commands are typically code fixes to 
 either fix problems or to beautify/refactor code.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnCodeAction := OnCodeAction1;
 
@@ -1603,7 +1488,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspCodeAction) then Exit;
   
-  params := TSmartPtr.Make(TLSPCodeActionParams.Create)();
+  params := TLSPCodeActionParams.Create;
   
   // Document
   params.textDocument.uri := FilePathToUri('c:\source\foo.js');
@@ -1624,7 +1509,8 @@ begin
   FLSPClient1.SendRequest(lspCodeAction, '', params);
 end;
 
-procedure OnCodeAction1(Sender: TObject; const Id: Integer; const value: TLSPCodeActionResponse);
+procedure OnCodeAction1(Sender: TObject; const value: TLSPCodeActionResponse; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   item: TLSPCodeAction;
@@ -1690,7 +1576,7 @@ The request is sent from the client to the server to resolve additional informat
 for a given code action. This is usually used to compute the edit property of a code 
 action to avoid its unnecessary computation during the textDocument/codeAction request.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnCodeActionResolve := OnCodeActionResolve1;
 
@@ -1705,7 +1591,8 @@ begin
   FLSPClient1.SendRequest(lspCodeActionResolve, '', params);
 end;
 
-procedure OnCodeActionResolve1(Sender: TObject; const Id: Integer; const value: TLSPCodeAction);
+procedure OnCodeActionResolve1(Sender: TObject; const value: TLSPCodeAction; const errorCode: Integer; 
+    const errorMessage: string);
 begin
   if Assigned(value.edit) then
     LSPApplyChanges(value.edit)
@@ -1717,7 +1604,7 @@ end;
 The code lens request is sent from the client to the server to compute code lenses 
 for a given text document.
 
-```pascal
+```
 // Event to catch the code lens response from the server
 FLSPClient1.OnCodeLens := OnCodeLens1;
 
@@ -1726,13 +1613,14 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspCodeLens) then Exit;
   
-  params := TSmartPtr.Make(TLSPCodeLensParams.Create)();
+  params := TLSPCodeLensParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.pas');
   
   FLSPClient1.SendRequest(lspCodeLens, '', params);
 end;
 
-procedure OnCodeLens1(Sender: TObject; const Id: Integer; const value: TLSPCodeLensResponse);
+procedure OnCodeLens1(Sender: TObject; const value: TLSPCodeLensResponse; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   lens: TLSPCodeLens;
@@ -1751,7 +1639,7 @@ end;
 The code lens resolve request is sent from the client to the server to resolve the 
 command for a given code lens item.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnCodeLensResolve := OnCodeLensResolve1;
 
@@ -1765,7 +1653,8 @@ begin
   FLSPClient1.SendRequest(lspCodeLensResolve, '', params);
 end;
 
-procedure OnCodeLensResolve1(Sender: TObject; const Id: Integer; const value: TLSPCodeLens);
+procedure OnCodeLensResolve1(Sender: TObject; const value: TLSPCodeLens; const errorCode: Integer; 
+    const errorMessage: string);
 begin
   ResolveLens(value);
   ...
@@ -1778,7 +1667,7 @@ The workspace/codeLens/refresh request is sent from the server to the client. Se
 can use it to ask clients to refresh the code lenses currently shown in editors. As a 
 result the client should ask the server to recompute the code lenses for these editors.
 
-```pascal
+```
 // Set event handler to be able to recieve refresh requests
 LSPClient1.OnCodeLensRefresh := OnCodeLensRefresh1;
 
@@ -1797,7 +1686,7 @@ end;
 The document links request is sent from the client to the server to request the location 
 of links in a document.
 
-```pascal
+```
 // Event to catch response from the server
 FLSPClient1.OnDocumentLink := OnDocumentLink1;
 
@@ -1806,13 +1695,14 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspDocumentLink) then Exit;
   
-  params := TSmartPtr.Make(TLSPDocumentLinkParams.Create)();
+  params := TLSPDocumentLinkParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   
   FLSPClient1.SendRequest(lspDocumentLink, '', params);
 end;
 
-procedure OnDocumentLink1(Sender: TObject; const Id: Integer; const value: TLSPDocumentLinkResponse);
+procedure OnDocumentLink1(Sender: TObject; const value: TLSPDocumentLinkResponse; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   link: TLSPDocumentLink;
@@ -1831,7 +1721,7 @@ end;
 The document link resolve request is sent from the client to the server to resolve 
 the target of a given document link.
 
-```pascal
+```
 // Catch the response from the server
 FLSPClient1.OnDocumentLinkResolve := OnDocumentLinkResolve1;
 
@@ -1846,7 +1736,8 @@ begin
   FLSPClient1.SendRequest(lspDocumentLinkResolve, '', params);
 end;
 
-procedure OnDocumentLinkResolve1(Sender: TObject; const Id: Integer; const value: TLSPDocumentLink);
+procedure OnDocumentLinkResolve1(Sender: TObject; const value: TLSPDocumentLink; const errorCode: Integer; 
+    const errorMessage: string);
 begin
   // Get information from value
   ...
@@ -1859,7 +1750,7 @@ The document color request is sent from the client to the server to list all col
 references found in a given text document. Along with the range, a color value in 
 RGB is returned.
 
-```pascal
+```
 // Event to catch response from the server
 FLSPClient1.OnDocumentColor := OnDocumentColor1;
 
@@ -1868,13 +1759,14 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspDocumentColor) then Exit;
   
-  params := TSmartPtr.Make(TLSPDocumentColorParams.Create)();
+  params := TLSPDocumentColorParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   
   FLSPClient1.SendRequest(lspDocumentColor, '', params);
 end;
 
-procedure OnDocumentColor1(Sender: TObject; const Id: Integer; const values: TLSPColorInformationValues);
+procedure OnDocumentColor1(Sender: TObject; const values: TLSPColorInformationValues; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   colorInfo: TLSPColorInformation;
@@ -1909,7 +1801,7 @@ of presentations for a color value at a given location. Clients can use the resu
 * a color reference.
 * show in a color picker and let users pick one of the presentations
 
-```pascal
+```
 // Event to catch response from the server
 FLSPClient1.OnColorPresentation := OnColorPresentation1;
 
@@ -1918,7 +1810,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspColorPresentation) then Exit;
   
-  params := TSmartPtr.Make(TLSPColorPresentationParams.Create)();
+  params := TLSPColorPresentationParams.Create;
   
   // Text document
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
@@ -1932,7 +1824,8 @@ begin
   FLSPClient1.SendRequest(lspColorPresentation, '', params);
 end;
 
-procedure OnColorPresentation1(Sender: TObject; const Id: Integer; const values: TLSPColorPresentationValues);
+procedure OnColorPresentation1(Sender: TObject; const values: TLSPColorPresentationValues; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   colorPresentation: TLSPColorPresentation;
@@ -1966,7 +1859,7 @@ The returned array should be used to edit your document. You should always apply
 the end of the document. Some servers may reverse the returned array for you. Others
 may not. So you need to check the returned array.
 
-```pascal
+```
 // Event to catch response from the server
 FLSPClient1.OnDocumentFormatting := OnDocumentFormatting1;
 
@@ -1975,7 +1868,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspDocumentFormatting) then Exit;
   
-  params := TSmartPtr.Make(TLSPDocumentFormattingParams.Create)();
+  params := TLSPDocumentFormattingParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.options.tabSize := 2;
   params.options.insertSpaces := True;
@@ -1984,7 +1877,8 @@ begin
   FLSPClient.SendRequest(lspDocumentFormatting, '', params);
 end;
 
-procedure OnDocumentFormatting1(Sender: TObject; const Id: Integer; const value: TLSPTextEditValues);
+procedure OnDocumentFormatting1(Sender: TObject; const value: TLSPTextEditValues; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   edit: TLSPTextEdit;
@@ -2015,7 +1909,7 @@ end;
 The document range formatting request is sent from the client to the server to format 
 a given range in a document.
 
-```pascal
+```
 // Event to catch response from the server
 FLSPClient1.OnDocumentRangeFormatting := OnDocumentRangeFormatting1;
 
@@ -2024,7 +1918,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspDocumentRangeFormatting) then Exit;
   
-  params := TSmartPtr.Make(TLSPDocumentRangeFormattingParams.Create)();
+  params := TLSPDocumentRangeFormattingParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.options.tabSize := 2;
   params.options.insertSpaces := True;
@@ -2038,7 +1932,8 @@ begin
   FLSPClient.SendRequest(lspDocumentRangeFormatting, '', params);
 end;
 
-procedure OnDocumentRangeFormatting1(Sender: TObject; const Id: Integer; const value: TLSPTextEditValues);
+procedure OnDocumentRangeFormatting1(Sender: TObject; const value: TLSPTextEditValues; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   edit: TLSPTextEdit;
@@ -2069,7 +1964,7 @@ end;
 The document on type formatting request is sent from the client to the server to format 
 parts of the document during typing.
 
-```pascal
+```
 // Event to catch response from the server
 FLSPClient1.OnDocumentOnTypeFormatting := OnDocumentOnTypeFormatting1;
 
@@ -2078,7 +1973,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspDocumentOnTypeFormatting) then Exit;
   
-  params := TSmartPtr.Make(TLSPDocumentOnTypeFormattingParams.Create)();
+  params := TLSPDocumentOnTypeFormattingParams.Create;
   
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.ch := ';';
@@ -2093,7 +1988,8 @@ begin
   FLSPClient.SendRequest(lspDocumentOnTypeFormatting, '', params);
 end;
 
-procedure OnDocumentOnTypeFormatting1(Sender: TObject; const Id: Integer; const values: TLSPTextEditValues);
+procedure OnDocumentOnTypeFormatting1(Sender: TObject; const values: TLSPTextEditValues; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   edit: TLSPTextEdit;
@@ -2124,7 +2020,7 @@ end;
 The folding range request is sent from the client to the server to return all folding 
 ranges found in a given text document.
 
-```pascal
+```
 FLSPClient1.OnFoldingRange := OnFoldingRange1;
 
 var
@@ -2133,13 +2029,14 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspFoldingRange) then Exit;
   
-  params := TSmartPtr.Make(TLSPFoldingRangeParams.Create)();
+  params := TLSPFoldingRangeParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   
   FLSPClient1.SendRequest(lspFoldingRange, '', params);
 end;
 
-procedure OnFoldingRange1(Sender: TObject; const Id: Integer; const values: TLSPFoldingRangeResponse);
+procedure OnFoldingRange1(Sender: TObject; const values: TLSPFoldingRangeResponse; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   foldRange: TLSPFoldingRange;
@@ -2161,7 +2058,7 @@ The selection range request is sent from the client to the server to return sugg
 selection ranges at an array of given positions. A selection range is a range around 
 the cursor position which the user might be interested in selecting.
 
-```pascal
+```
 FLSPClient1.OnSelectionRange := OnSelectionRange1;
 
 var
@@ -2170,7 +2067,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspSelectionRange) then Exit;
   
-  params := TSmartPtr.Make(TLSPSelectionRangeParams.Create)();
+  params := TLSPSelectionRangeParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   
   // Set position(s)
@@ -2181,7 +2078,8 @@ begin
   FLSPClient1.SendRequest(lspSelectionRange, '', params);
 end;
 
-procedure OnSelectionRange1(Sender: TObject; const Id: Integer; const values: TLSPSelectionRangeResponse);
+procedure OnSelectionRange1(Sender: TObject; const values: TLSPSelectionRangeResponse; const errorCode: Integer; 
+    const errorMessage: string);
 var
   i: Integer;
   selRange: TLSPSelectionRange;
@@ -2203,7 +2101,7 @@ requests are executed in two steps:
 1. first a call hierarchy item is resolved for the given text document position
 2. for a call hierarchy item the incoming or outgoing call hierarchy items are resolved.
 
-```pascal
+```
 FLSPClient1.OnPrepareCallHierarchy := OnPrepareCallHierarchy1;
 
 var
@@ -2212,7 +2110,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspPrepareCallHierarchy) then Exit;
   
-  params := TSmartPtr.Make(TLSPCallHierarchyPrepareParams.Create)();
+  params := TLSPCallHierarchyPrepareParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.position.line := 4;
   params.position.character := 8;
@@ -2220,8 +2118,8 @@ begin
   FLSPClient1.SendRequest(lspPrepareCallHierarchy, '', params);
 end;
 
-procedure OnPrepareCallHierarchy1(Sender: TObject; const Id: Integer; 
-  const values:  TLSPPrepareCallHierarchyResponse);
+procedure OnPrepareCallHierarchy1(Sender: TObject; const values: TLSPPrepareCallHierarchyResponse; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
   item: TLSPCallHierarchyItem;
@@ -2246,7 +2144,7 @@ end;
 The request is sent from the client to the server to resolve incoming calls for a given 
 call hierarchy item.
 
-```pascal
+```
 FLSPClient1.OnCallHierarchyIncomming := OnCallHierarchyIncomming1;
 
 var
@@ -2261,7 +2159,8 @@ begin
   FLSPClient1.SendRequest(lspCallHierarchyIncommingCalls, '', params);
 end;
 
-procedure OnCallHierarchyIncomming1(Sender: TObject; const Id: Integer; const values: TLSPCallHierarchyIncomingCallResponse);
+procedure OnCallHierarchyIncomming1(Sender: TObject; const values: TLSPCallHierarchyIncomingCallResponse; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
   item: TLSPCallHierarchyIncomingCall;
@@ -2280,7 +2179,7 @@ end;
 The request is sent from the client to the server to resolve outgoing calls for a given 
 call hierarchy item.
 
-```pascal
+```
 FLSPClient1.OnCallHierarchyOutgoing := OnCallHierarchyOutgoing1;
 
 var
@@ -2295,7 +2194,8 @@ begin
   FLSPClient1.SendRequest(lspCallHierarchyOutgoingCalls, '', params);
 end;
 
-procedure OnCallHierarchyOutgoing1(Sender: TObject; const Id: Integer; const values: TLSPCallHierarchyOutgoingCallResponse);
+procedure OnCallHierarchyOutgoing1(Sender: TObject; const values: TLSPCallHierarchyOutgoingCallResponse; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
   item: TLSPCallHierarchyOutgoingCall;
@@ -2319,7 +2219,7 @@ requests are executed in two steps:
 1. first a type hierarchy item is prepared for the given text document position.
 2. for a type hierarchy item the supertype or subtype type hierarchy items are resolved.
 
-```pascal
+```
 FLSPClient1.OnPrepareTypeHierarchy := OnPrepareTypeHierarchy1;
 
 var
@@ -2328,7 +2228,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspPrepareTypeHierarchy) then Exit;
   
-  params := TSmartPtr.Make(TLSPTypeHierarchyPrepareParams.Create)();
+  params := TLSPTypeHierarchyPrepareParams.Create;
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.position.line := 4;
   params.position.character := 8;
@@ -2336,7 +2236,8 @@ begin
   FLSPClient1.SendRequest(lspPrepareTypeHierarchy, '', params);
 end;
 
-procedure OnPrepareTypeHierarchy1(Sender: TObject; const Id: Integer; const values: TLSPPrepareTypeHierarchyResponse);
+procedure OnPrepareTypeHierarchy1(Sender: TObject; const values: TLSPPrepareTypeHierarchyResponse; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
   item: TLSPTypeHierarchyItem;
@@ -2361,7 +2262,7 @@ end;
 The request is sent from the client to the server to resolve the supertypes for a
 given type hierarchy item.
 
-```pascal
+```
 FLSPClient1.OnTypeHierarchySupertypes := OnTypeHierarchySupertypes1;
 
 var
@@ -2376,7 +2277,8 @@ begin
   FLSPClient1.SendRequest(lspTypeHierarchySupertypes, '', params);
 end;
 
-procedure OnTypeHierarchySupertypes1(Sender: TObject; const Id: Integer; const values: TLSPPrepareTypeHierarchyResponse);
+procedure OnTypeHierarchySupertypes1(Sender: TObject; const values: TLSPPrepareTypeHierarchyResponse; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
   item: TLSPTypeHierarchyItem;
@@ -2394,7 +2296,7 @@ end;
 The request is sent from the client to the server to resolve the subtypes for a
 given type hierarchy item.
 
-```pascal
+```
 FLSPClient1.OnTypeHierarchySubtypes := OnTypeHierarchySubtypes1;
 
 var
@@ -2409,7 +2311,8 @@ begin
   FLSPClient1.SendRequest(lspTypeHierarchySubtypes, '', params);
 end;
 
-procedure OnTypeHierarchySubtypes1(Sender: TObject; const Id: Integer; const values: TLSPPrepareTypeHierarchyResponse);
+procedure OnTypeHierarchySubtypes1(Sender: TObject; const values: TLSPPrepareTypeHierarchyResponse; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
   item: TLSPTypeHierarchyItem;
@@ -2434,7 +2337,7 @@ The request support streaming by setting a partial result id.
 
 ### Semantic Tokens for a whole file
 
-```pascal
+```
 FLSPClient1.OnSemanticTokensFull := OnSemanticTokensFull1;
 
 var
@@ -2443,7 +2346,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspSemanticTokensFull) then Exit;
   
-  params := TSmartPtr.Make(TLSPSemanticTokensParams.Create)();
+  params := TLSPSemanticTokensParams.Create;
   
   // Find all tokens in the given file
   params.textDocument.uri := FilePathToUri('c:\source\foo.h');
@@ -2451,7 +2354,8 @@ begin
   FLSPClient1.SendRequest(lspSemanticTokensFull, '', params);
 end;
 
-procedure OnSemanticTokensFull1(Sender: TObject; const Id: Integer; const values: TLSPSemanticTokens);
+procedure OnSemanticTokensFull1(Sender: TObject; const values: TLSPSemanticTokens; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
 begin
@@ -2468,7 +2372,7 @@ end;
 
 ### Semantic Tokens delta for a whole file
 
-```pascal
+```
 FLSPClient1.OnSemanticTokensFullDelta := OnSemanticTokensFullDelta1;
 
 var
@@ -2477,7 +2381,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspSemanticTokensDelta) then Exit;
   
-  params : TSmartPtr.Make(TLSPSemanticTokensDeltaParams.Create)();
+  params : TLSPSemanticTokensDeltaParams.Create;
   
   // Find all tokens in the given file
   params.textDocument.uri := FilePathToUri('c:\source\foo.h');
@@ -2488,7 +2392,8 @@ begin
   FLSPClient1.SendRequest(lspSemanticTokensFullDelta, '', params);
 end;
 
-procedure OnSemanticTokensFullDelta1(Sender: TObject; const Id: Integer; const values: TLSPSemanticTokensDelta);
+procedure OnSemanticTokensFullDelta1(Sender: TObject; const values: TLSPSemanticTokensDelta; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
   edit: TLSPSemanticTokensEdit;
@@ -2506,7 +2411,7 @@ end;
 
 ### Semantic Tokens for a range
 
-```pascal
+```
 FLSPClient1.OnSemanticTokensRange := OnSemanticTokensRange1;
 
 var
@@ -2515,7 +2420,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspSemanticTokensRange) then Exit;
   
-  params := TSmartPtr.Make(TLSPSemanticTokensRangeParams.Create)();
+  params := TLSPSemanticTokensRangeParams.Create;
   
   // Find all tokens in the given file
   params.textDocument.uri := FilePathToUri('c:\source\foo.h');
@@ -2529,7 +2434,8 @@ begin
   FLSPClient1.SendRequest(lspSemanticTokensRange, '', params);
 end;
 
-procedure OnSemanticTokensRange1(Sender: TObject; const Id: Integer; const values: TLSPSemanticTokens);
+procedure OnSemanticTokensRange1(Sender: TObject; const values: TLSPSemanticTokens; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
 begin
@@ -2551,7 +2457,7 @@ Servers can use it to ask clients to refresh the editors for which this server p
 semantic tokens. As a result the client should ask the server to recompute the semantic 
 tokens for these editors.
 
-```pascal
+```
 FLSPClient1.OnSemanticTokensRefresh := OnSemanticTokensRefresh1;
 
 procedure OnSemanticTokensRange1(Sender: TObject; const errorCode: Integer; const errorMessage: string);
@@ -2568,7 +2474,7 @@ The linked editing request is sent from the client to the server to return for a
 position in a document the range of the symbol at the position and all ranges that have 
 the same content.
 
-```pascal
+```
 FLSPClient1.OnLinkedEditingRange := OnLinkedEditingRange1;
 
 var
@@ -2577,7 +2483,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspLinkedEditingRange) then Exit;
   
-  params := TSmartPtr.Make(TLSPLinkedEditingRangeParams.Create)();
+  params := TLSPLinkedEditingRangeParams.Create;
   
   // Find all instances of the text (e.g. variable) in the document
   params.textDocument.uri := FilePathToUri('c:\source\foo.h');
@@ -2589,7 +2495,8 @@ begin
   FLSPClient1.SendRequest(lspLinkedEditingRange, '', params);
 end;
 
-procedure OnLinkedEditingRange1(Sender: TObject; const Id: Integer; const values: TLSPLinkedEditingRanges);
+procedure OnLinkedEditingRange1(Sender: TObject; const values: TLSPLinkedEditingRanges; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
 begin
@@ -2607,7 +2514,7 @@ The textDocument/moniker request is sent from the client to the server to get th
 monikers for a given text document position. An array of Moniker types is returned as 
 response to indicate possible monikers at the given location.
 
-```pascal
+```
 FLSPClient1.OnMoniker := OnMoniker1;
 
 var
@@ -2616,7 +2523,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspMoniker) then Exit;
   
-  params := TSmartPtr.Make(TLSPMonikerParams.Create)();
+  params := TLSPMonikerParams.Create;
   
   // Get symbol monikers from document
   params.textDocument.uri := FilePathToUri('c:\source\foo.h');
@@ -2628,7 +2535,8 @@ begin
   FLSPClient1.SendRequest(lspMoniker, '', params);
 end;
 
-procedure OnMoniker1(Sender: TObject; const Id: Integer; const values: TLSPMonikerResult);
+procedure OnMoniker1(Sender: TObject; const values: TLSPMonikerResult; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
 begin
@@ -2646,7 +2554,7 @@ The inlay hints request is sent from the client to the server to compute inlay h
 for a given [text document, range] tuple that may be rendered in the editor in place
 with other text.
 
-```pascal
+```
 FLSPClient1.OnInlayHint := OnInlayHint1;
 
 var
@@ -2655,7 +2563,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspInlayHint) then Exit;
   
-  params := TSmartPtr.Make(TLSPInlayHintParams.Create)();
+  params := TLSPInlayHintParams.Create;
   
   // Get text document
   params.textDocument.uri := FilePathToUri('c:\source\foo.php');
@@ -2667,7 +2575,8 @@ begin
   FLSPClient1.SendRequest(lspInlayHint, '', params);
 end;
 
-procedure OnInlayHint1(Sender: TObject; const Id: Integer; const values: TLSPInlayHintResult);
+procedure OnInlayHint1(Sender: TObject; const values: TLSPInlayHintResult; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
 begin
@@ -2688,7 +2597,7 @@ during the textDocument/inlayHint request.
 
 The response is handled in the OnInlayHintResolve() event.
 
-```pascal
+```
 // The event catches the response from the server
 FLSPClient1.OnInlayHintResolve := OnInlayHintResolve1;
 
@@ -2704,7 +2613,8 @@ begin
   FLSPClient1.SendRequest(lspInlayHintResolve, '', item);
 end;
 
-procedure OnInlayHintResolve1(Sender: TObject; const Id: Integer; const item: TLSPInlayHint);
+procedure OnInlayHintResolve1(Sender: TObject; const item: TLSPInlayHint; const errorCode: Integer; 
+    const errorMessage: string);
 var
   s: string;
 begin
@@ -2721,7 +2631,7 @@ Servers can use it to ask clients to refresh the inlay hints currently shown in
 editors. As a result the client should ask the server to recompute the inlay hints
 for these editors.
 
-```pascal
+```
 // Set event handler to be able to recieve refresh requests
 LSPClient1.OnInlayHintRefresh := OnInlayHintRefresh1;
 
@@ -2740,7 +2650,7 @@ end;
 The inline value request is sent from the client to the server to compute inline
 values for a given text document that may be rendered in the editor at the end of lines.
 
-```pascal
+```
 FLSPClient1.OnInlineValue := OnInlineValue1;
 
 var
@@ -2749,7 +2659,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspInlineValue) then Exit;
   
-  params := TSmartPtr.Make(TLSPInlineValueParams.Create)();
+  params := TLSPInlineValueParams.Create;
   
   // Get text document
   params.textDocument.uri := FilePathToUri('c:\source\foo.php');
@@ -2763,7 +2673,8 @@ begin
   FLSPClient1.SendRequest(lspInlineValue, '', params);
 end;
 
-procedure OnInlineValue1(Sender: TObject; const Id: Integer; const values: TLSPInlineValueResult);
+procedure OnInlineValue1(Sender: TObject; const values: TLSPInlineValueResult; 
+    const errorCode: Integer; const errorMessage: string);
 var
   i: Integer;
 begin
@@ -2798,7 +2709,7 @@ Servers can use it to ask clients to refresh the inline values currently shown i
 editors. As a result the client should ask the server to recompute the inline values
 for these editors.
 
-```pascal
+```
 // Set event handler to be able to recieve refresh requests
 LSPClient1.OnInlineValueRefresh := OnInlineValueRefresh1;
 
@@ -2825,9 +2736,10 @@ The command and arguments may have come from the server after a codeAction reque
 
 In most cases the server creates a WorkspaceEdit structure and applies the changes to
 the workspace using the request workspace/applyEdit which is sent from the server to the client.
-```pascal
+```
 // Set event handlers
 LSPClient1.OnExecuteCommand := OnExecuteCommand1;
+LSPClient1.OnWorkspaceApplyEdit := OnWorkspaceApplyEdit1;
 
 procedure LSPSendExecuteCommand(const item: TLSPCommand);
 var
@@ -2836,16 +2748,24 @@ begin
   if not LClient.IsRequestSupported(lspWorkspaceExecuteCommand) then Exit;
 
   // Send execute command request to server
-  params := TSmartPtr.Make(TLSPExecuteCommandParams.Create)();
+  params := TLSPExecuteCommandParams.Create;
   params.command := item.command;
   params.arguments := item.arguments;
 
   LClient.SendRequest(lspWorkspaceExecuteCommand, '', params);
 end;
 
-procedure OnExecuteCommand1(Sender: TObject; const Id: Integer; Json: string);
+procedure OnWorkspaceApplyEdit1(Sender: TObject; const value: TLSPApplyWorkspaceEditParams;
+  var responseValue: TLSPApplyWorkspaceEditResponse; var errorCode: Integer; var errorMessage: string);
 begin
-  // The response depends on the command and the server
+  LSPApplyChanges(value.edit);
+end;
+
+procedure OnExecuteCommand1(Sender: TObject; Json: string; const errorCode: Integer;
+  const errorMsg: string);
+begin
+  if errorMsg <> '' then
+    OnError(Sender, errorCode, errorMsg);
 end;
 ```
 
@@ -2854,13 +2774,13 @@ end;
 The workspace/didChangeWorkspaceFolders notification is sent from the client to the server 
 to inform the server about workspace folder configuration changes.
 
-```pascal
+```
 var
   params: TLSPDidChangeWorkspaceFoldersParams;
 begin
   if not FLSPClient1.IsRequestSupported(lspDidChangeWorkspaceFolders) then Exit;
   
-  params := TSmartPtr.Make(TLSPDidChangeWorkspaceFoldersParams.Create)();
+  params := TLSPDidChangeWorkspaceFoldersParams.Create;
 
   SetLength(params.event.added, 1);
   params.event.added[i].name := 'NewFolder';
@@ -2870,7 +2790,7 @@ begin
   params.event.removed[i].name := 'oldFolder';
   params.event.removed[i].uri := FilePathToUri('c:\source\OldFolder');
 
-  FLSPClient1.NotifyServer(lspDidChangeWorkspaceFolders, '', params);
+  FLSPClient1.SendRequest(lspDidChangeWorkspaceFolders, '', params);
 end;
 ```
 
@@ -2880,8 +2800,8 @@ A notification sent from the client to the server to signal the change of config
 The string is server dependent and can contain anything.
 E.g. this could be sent to a CSS server.
 
-```pascal
-  s := '''{"settings": {
+```
+  s := '{"settings": {
           "css": {
               "lint": {
                   "argumentsInColorFunction": "error",
@@ -2898,9 +2818,9 @@ E.g. this could be sent to a CSS server.
               ...
           }
           }
-        }''';
+        }';
 
-   LSPClient.NotifyServer(lspDidChangeConfiguration, '', nil, s);
+   LSPClient.SendRequest(lspDidChangeConfiguration, '', nil, s);
 ```
 
 
@@ -2909,7 +2829,7 @@ E.g. this could be sent to a CSS server.
 The watched files notification is sent from the client to the server when the client 
 detects changes to files and folders watched by the language client.
 
-```pascal
+```
 // We have created a new file (new.cpp) and deleted (old.cpp). Let the server know.
 // The change type. 1=created, 2=changed, 3=deleted
 
@@ -2918,7 +2838,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspDidChangeWatchedFiles) then Exit;
   
-  params := TSmartPtr.Make(TLSPDidChangeWatchedFilesParams.Create)();
+  params := TLSPDidChangeWatchedFilesParams.Create;
 
   SetLength(params.changes, 2);
   params.changes[0].typ := 1;
@@ -2926,7 +2846,7 @@ begin
   params.changes[1].typ := 3;
   params.changes[1].uri := FilePathToUri('c:\source\old.cpp');
   
-  FLSPClient1.NotifyServer(lspDidChangeWatchedFiles, '', params);
+  FLSPClient1.SendRequest(lspDidChangeWatchedFiles, '', params);
 end;
 ```
 
@@ -2935,7 +2855,7 @@ end;
 The did create files notification is sent from the client to the server when files/folders
 were created from within the client.
 
-```pascal
+```
 procedure DidCreateFiles(const files: TStringlist);
 var
   i: Integer;
@@ -2943,13 +2863,13 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspWorkspaceDidCreateFiles) then Exit;
   
-  params := TSmartPtr.Make(TLSPCreateFilesParams.Create)();
+  params := TLSPCreateFilesParams.Create;
 
   SetLength(params.files, files.Count);
   for i := 0 to files.Count - 1 do
     params.files[i].uri := files[i];
 
-  FLSPClient1.NotifyServer(lspWorkspaceDidCreateFiles, '', params);
+  FLSPClient1.SendRequest(lspWorkspaceDidCreateFiles, '', params);
 end;
 ```
 
@@ -2958,7 +2878,7 @@ end;
 The did delete files notification is sent from the client to the server when files/folders
 were deleted from within the client.
 
-```pascal
+```
 procedure DidDeleteFiles(const files: TStringlist);
 var
   i: Integer;
@@ -2966,13 +2886,13 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspWorkspaceDidDeleteFiles) then Exit;
   
-  params := TSmartPtr.Make(TLSPDeleteFilesParams.Create)();
+  params := TLSPDeleteFilesParams.Create;
 
   SetLength(params.files, files.Count);
   for i := 0 to files.Count - 1 do
     params.files[i].uri := files[i];
 
-  FLSPClient1.NotifyServer(lspWorkspaceDidDeleteFiles, '', params);
+  FLSPClient1.SendRequest(lspWorkspaceDidDeleteFiles, '', params);
 end;
 ```
  
@@ -2981,7 +2901,7 @@ end;
 The did rename files notification is sent from the client to the server when files/folders
 were renamed from within the client.
 
-```pascal
+```
 procedure DidRenameFiles(const files: TStringlist);
 var
   i: Integer;
@@ -2989,7 +2909,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspWorkspaceDidRenameFiles) then Exit;
   
-  params := TSmartPtr.Make(TLSPRenameFilesParams.Create)();
+  params := TLSPRenameFilesParams.Create;
 
   SetLength(params.files, files.Count);
   for i := 0 to files.Count - 1 do
@@ -2998,7 +2918,7 @@ begin
     params.files[i].newUri := files.ValueFromIndex[i];
   end;
 
-  FLSPClient1.NotifyServer(lspWorkspaceDidRenameFiles, '', params);
+  FLSPClient1.SendRequest(lspWorkspaceDidRenameFiles, '', params);
 end;
 ```
 
@@ -3007,7 +2927,7 @@ end;
 The will create files request is sent from the client to the server before files 
 are actually created.
 
-```pascal
+```
 FLSPClient1.OnWorkspaceWillCreateFiles := OnWorkspaceWillCreateFiles1;
 
 // Add files and folder paths to the stringlist and make the request
@@ -3021,7 +2941,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspWorkspaceWillCreateFiles) then Exit;
   
-  params := TSmartPtr.Make(TLSPCreateFilesParams.Create)();
+  params := TLSPCreateFilesParams.Create;
 
   SetLength(params.files, files.Count);
   for i := 0 to files.Count - 1 do
@@ -3030,7 +2950,7 @@ begin
   FLSPClient1.SendRequest(lspWorkspaceWillCreateFiles, '', params);
 end;
 
-procedure OnWorkspaceWillCreateFiles1(Sender: TObject; const Id: Integer; const value: TLSPWorkspaceEdit);
+procedure OnWorkspaceWillCreateFiles1(Sender: TObject; const value: TLSPWorkspaceEdit);
 begin
   // The request can return a WorkspaceEdit which will be applied to workspace before 
   // the files are created.
@@ -3047,7 +2967,7 @@ end;
 The will delete files request is sent from the client to the server before files 
 are actually deleted.
 
-```pascal
+```
 FLSPClient1.OnWorkspaceWillDeleteFiles := OnWorkspaceWillDeleteFiles1;
 
 // Add files and folder paths to the stringlist and send the request
@@ -3061,7 +2981,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspWorkspaceWillDeleteFiles) then Exit;
   
-  params := TSmartPtr.Make(TLSPDeleteFilesParams.Create)();
+  params := TLSPDeleteFilesParams.Create;
 
   SetLength(params.files, files.Count);
   for i := 0 to files.Count - 1 do
@@ -3070,7 +2990,7 @@ begin
   FLSPClient1.SendRequest(lspWorkspaceWillDeleteFiles, '', params);
 end;
 
-procedure OnWorkspaceWillDeleteFiles1(Sender: TObject; const Id: Integer; const value: TLSPWorkspaceEdit);
+procedure OnWorkspaceWillDeleteFiles1(Sender: TObject; const value: TLSPWorkspaceEdit);
 begin
   // The request can return a WorkspaceEdit which will be applied to workspace before 
   // the files are deleted.
@@ -3087,7 +3007,7 @@ end;
 The will rename files request is sent from the client to the server before files 
 are actually renamed.
 
-```pascal
+```
 FLSPClient1.OnWorkspaceWillRenameFiles := OnWorkspaceWillRenameFiles1;
 
 // Add old and new files and folder paths to the stringlist and send the request
@@ -3103,7 +3023,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspWorkspaceWillRenameFiles) then Exit;
   
-  params := TSmartPtr.Make(TLSPRenameFilesParams.Create)();
+  params := TLSPRenameFilesParams.Create;
 
   SetLength(params.files, files.Count);
   for i := 0 to files.Count - 1 do
@@ -3115,7 +3035,7 @@ begin
   FLSPClient1.SendRequest(lspWorkspaceWillRenameFiles, '', params);
 end;
 
-procedure OnWorkspaceWillRenameFiles1(Sender: TObject; const Id: Integer; const value: TLSPWorkspaceEdit);
+procedure OnWorkspaceWillRenameFiles1(Sender: TObject; const value: TLSPWorkspaceEdit);
 begin
   // The request can return a WorkspaceEdit which will be applied to workspace before 
   // the files are renamed.
@@ -3132,20 +3052,20 @@ end;
 The workspace symbol request is sent from the client to the server to list project-wide
 symbols matching the query string.
 
-```pascal
+```
   LSPClient1.OnWorkspaceSymbols := OnWorkspaceSymbols1;
   LSPClient1.OnWorkDoneProgress := OnWorkDoneProgress1;
   LSPClient1.OnProgress := OnProgress1;
   
   if not FLSPClient1.IsRequestSupported(lspWorkspaceSymbol) then Exit;
-  params := TSmartPtr.Make(TLSPWorkspaceSymbolParams.Create)();
+  params := TLSPWorkspaceSymbolParams.Create;
   params.query := 'single';
   params.workDoneToken := '28c6150c-bd7b-11e7-abc4-cec278b6b50a';
   params.partialResultToken := '';
   LSPClient1.SendRequest(lspWorkspaceSymbol, '', params);
   
   // Handle the response in the event handler
-  procedure OnWorkspaceSymbolsRequest1(Sender: TObject; const Id: Integer; const symbols: TLSPSymbolInformations);
+  procedure OnWorkspaceSymbolsRequest1(Sender: TObject; const symbols: TLSPSymbolInformations);
   var
     i: Integer;
     name: string;
@@ -3171,7 +3091,7 @@ OnProgress event instead (see OnProgress example).
 The rename request is sent from the client to the server to ask the server to compute a 
 workspace change so that the client can perform a workspace-wide rename of a symbol.
 
-```pascal
+```
 FLSPClient1.OnRename := OnRename1;
 
 var
@@ -3180,7 +3100,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspRename) then Exit;
   
-  params := TSmartPtr.Make(TLSPRenameParams.Create)();
+  params := TLSPRenameParams.Create;
 
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.position.line := 1;
@@ -3190,7 +3110,7 @@ begin
   FLSPClient1.SendRequest(lspRename, '', params);
 end;
 
-procedure OnRename1(Sender: TObject; const Id: Integer; const value: TLSPWorkspaceEdit; const errorCode: Integer; 
+procedure OnRename1(Sender: TObject; const value: TLSPWorkspaceEdit; const errorCode: Integer; 
     const errorMessage: string);
 begin
   if Assigned(value) then
@@ -3206,7 +3126,7 @@ end;
 The prepare rename request is sent from the client to the server to setup and test the 
 validity of a rename operation at a given location.
 
-```pascal
+```
 FLSPClient1.OnPrepareRename := OnPrepareRename1;
 
 var
@@ -3215,7 +3135,7 @@ var
 begin
   if not FLSPClient1.IsRequestSupported(lspPrepareRename) then Exit;
   
-  params := TSmartPtr.Make(TLSPPrepareRenameParams.Create)();
+  params := TLSPPrepareRenameParams.Create;
 
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.position.line := 1;
@@ -3224,7 +3144,7 @@ begin
   FLSPClient1.SendRequest(lspPrepareRename, '', params);
 end;
 
-procedure OnPrepareRename1(Sender: TObject; const Id: Integer; const value: TLSPPrepareRenameResponse; const errorCode: Integer; 
+procedure OnPrepareRename1(Sender: TObject; const value: TLSPPrepareRenameResponse; const errorCode: Integer; 
     const errorMessage: string);
 begin
   if Assigned(value) then
@@ -3255,7 +3175,7 @@ to the order of the passed TLSPConfigurationItems.
 If the client can’t provide a configuration setting for a given scope then null
 needs to be present in the returned array.
 
-```pascal
+```
 procedure OnConfiguration1(Sender: TObject; const values: TLSPConfigurationParams; 
     var AJsonResult: string; var errorCode: Integer; var errorMessage: string);
 var
@@ -3285,10 +3205,10 @@ partial result progress to support streaming of results.
 Below is an example of using progress events to recieve partial results. 
 You need to set the partial result token in a request for this to work.
 
-```pascal
+```
   LSPClient1.OnProgress := OnProgress1;
   
-  params := TSmartPtr.Make(TLSPWorkspaceSymbolParams.Create)();
+  params := TLSPWorkspaceSymbolParams.Create;
   params.query := 'single';
   params.workDoneToken := '';
   params.partialResultToken := '28c6150c-bd7b-11e7-abc4-cec278b6b50a';
@@ -3341,7 +3261,7 @@ You need to set the partial result token in a request for this to work.
 The workspace/applyEdit request is sent from the server to the client to modify 
 resource on the client side.
 
-```pascal
+```
 FLSPClient1.OnWorkspaceApplyEdit := OnWorkspaceApplyEdit1;
 
 procedure OnWorkspaceApplyEdit1(Sender: TObject; const value: TLSPApplyWorkspaceEditParams; 
@@ -3444,7 +3364,7 @@ YAML               yaml
 
 ## License
 
-Copyright (c) 2025+, Rickard Johansson (https://www.rj-texted.se)
+Copyright (c) 2021+, Rickard Johansson (https://www.rj-texted.se)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,

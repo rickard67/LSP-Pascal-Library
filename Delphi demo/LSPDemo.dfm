@@ -1,39 +1,32 @@
 object LSPDemoForm: TLSPDemoForm
   Left = 0
   Top = 0
-  Margins.Left = 2
-  Margins.Top = 2
-  Margins.Right = 2
-  Margins.Bottom = 2
   Caption = 'LSP Demo'
-  ClientHeight = 527
-  ClientWidth = 707
+  ClientHeight = 791
+  ClientWidth = 1061
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
-  Font.Height = -11
+  Font.Height = -16
   Font.Name = 'Tahoma'
   Font.Style = []
   KeyPreview = True
+  OldCreateOrder = False
   OnClose = FormClose
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnKeyDown = FormKeyDown
   OnKeyPress = FormKeyPress
   OnKeyUp = FormKeyUp
-  TextHeight = 13
+  PixelsPerInch = 144
+  TextHeight = 19
   object ToolBar1: TToolBar
     Left = 0
     Top = 0
-    Width = 707
-    Height = 30
-    Margins.Left = 2
-    Margins.Top = 2
-    Margins.Right = 2
-    Margins.Bottom = 2
+    Width = 1061
     AutoSize = True
-    ButtonHeight = 30
-    ButtonWidth = 31
+    ButtonHeight = 32
+    ButtonWidth = 32
     Caption = 'ToolBar1'
     Images = ImageList1
     ParentShowHint = False
@@ -42,80 +35,52 @@ object LSPDemoForm: TLSPDemoForm
     object tbOpen: TToolButton
       Left = 0
       Top = 0
-      Margins.Left = 2
-      Margins.Top = 2
-      Margins.Right = 2
-      Margins.Bottom = 2
       Caption = 'tbOpen'
       Enabled = False
       ImageIndex = 1
       OnClick = tbOpenClick
     end
     object tbSave: TToolButton
-      Left = 31
+      Left = 32
       Top = 0
-      Margins.Left = 2
-      Margins.Top = 2
-      Margins.Right = 2
-      Margins.Bottom = 2
       Caption = 'tbSave'
       Enabled = False
       ImageIndex = 3
       OnClick = tbSaveClick
     end
     object ToolButton5: TToolButton
-      Left = 62
+      Left = 64
       Top = 0
-      Width = 5
-      Margins.Left = 2
-      Margins.Top = 2
-      Margins.Right = 2
-      Margins.Bottom = 2
+      Width = 8
       Caption = 'ToolButton5'
       ImageIndex = 4
       Style = tbsSeparator
     end
     object tbOptions: TToolButton
-      Left = 67
+      Left = 72
       Top = 0
-      Margins.Left = 2
-      Margins.Top = 2
-      Margins.Right = 2
-      Margins.Bottom = 2
       Caption = 'tbOptions'
       ImageIndex = 4
       OnClick = tbOptionsClick
     end
     object ToolButton7: TToolButton
-      Left = 98
+      Left = 104
       Top = 0
-      Width = 6
-      Margins.Left = 2
-      Margins.Top = 2
-      Margins.Right = 2
-      Margins.Bottom = 2
+      Width = 8
       Caption = 'ToolButton7'
       ImageIndex = 5
       Style = tbsSeparator
     end
     object tbStartServer: TToolButton
-      Left = 104
+      Left = 112
       Top = 0
-      Margins.Left = 2
-      Margins.Top = 2
-      Margins.Right = 2
-      Margins.Bottom = 2
       Caption = 'tbStartServer'
       ImageIndex = 5
       OnClick = tbStartServerClick
     end
     object tbCloseServer: TToolButton
-      Left = 135
+      Left = 144
       Top = 0
-      Margins.Left = 2
-      Margins.Top = 2
-      Margins.Right = 2
-      Margins.Bottom = 2
       Caption = 'tbCloseServer'
       Enabled = False
       ImageIndex = 6
@@ -124,29 +89,21 @@ object LSPDemoForm: TLSPDemoForm
   end
   object Panel1: TPanel
     Left = 0
-    Top = 30
-    Width = 707
-    Height = 369
-    Margins.Left = 2
-    Margins.Top = 2
-    Margins.Right = 2
-    Margins.Bottom = 2
+    Top = 32
+    Width = 1061
+    Height = 566
     Align = alClient
     BevelOuter = bvNone
     TabOrder = 1
     object Memo1: TMemo
       Left = 0
       Top = 0
-      Width = 707
-      Height = 369
-      Margins.Left = 2
-      Margins.Top = 2
-      Margins.Right = 2
-      Margins.Bottom = 2
+      Width = 1061
+      Height = 566
       Align = alClient
       Font.Charset = DEFAULT_CHARSET
       Font.Color = clWindowText
-      Font.Height = -11
+      Font.Height = -16
       Font.Name = 'Consolas'
       Font.Style = []
       Lines.Strings = (
@@ -184,20 +141,16 @@ object LSPDemoForm: TLSPDemoForm
       OnMouseMove = Memo1MouseMove
     end
     object HintWindow: TPanel
-      Left = 421
-      Top = 256
-      Width = 230
-      Height = 97
-      Margins.Left = 2
-      Margins.Top = 2
-      Margins.Right = 2
-      Margins.Bottom = 2
+      Left = 632
+      Top = 384
+      Width = 345
+      Height = 145
       BevelKind = bkFlat
       BevelOuter = bvNone
       Color = clWindow
       Font.Charset = DEFAULT_CHARSET
       Font.Color = clWindowText
-      Font.Height = -11
+      Font.Height = -16
       Font.Name = 'Consolas'
       Font.Style = []
       ParentBackground = False
@@ -206,56 +159,46 @@ object LSPDemoForm: TLSPDemoForm
       TabOrder = 1
       Visible = False
       DesignSize = (
-        226
-        93)
+        341
+        141)
       object Label1: TLabel
-        Left = 5
-        Top = 5
-        Width = 36
-        Height = 13
-        Margins.Left = 2
-        Margins.Top = 2
-        Margins.Right = 2
-        Margins.Bottom = 2
+        Left = 8
+        Top = 8
+        Width = 54
+        Height = 19
         Caption = 'Label1'
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clWindowText
-        Font.Height = -11
+        Font.Height = -16
         Font.Name = 'Consolas'
         Font.Style = [fsBold]
         ParentFont = False
       end
       object Label2: TLabel
-        Left = 5
-        Top = 22
-        Width = 220
-        Height = 69
-        Margins.Left = 2
-        Margins.Top = 2
-        Margins.Right = 2
-        Margins.Bottom = 2
+        Left = 8
+        Top = 33
+        Width = 329
+        Height = 104
         Anchors = [akLeft, akTop, akRight, akBottom]
         AutoSize = False
         Caption = 'Label2'
         WordWrap = True
+        ExplicitWidth = 265
+        ExplicitHeight = 80
       end
     end
   end
   object ListBox1: TListBox
-    Left = 464
-    Top = 53
-    Width = 187
-    Height = 204
-    Margins.Left = 2
-    Margins.Top = 2
-    Margins.Right = 2
-    Margins.Bottom = 2
+    Left = 696
+    Top = 80
+    Width = 281
+    Height = 305
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWindowText
-    Font.Height = -11
+    Font.Height = -16
     Font.Name = 'Consolas'
     Font.Style = []
-    ItemHeight = 13
+    ItemHeight = 19
     ParentFont = False
     TabOrder = 2
     Visible = False
@@ -264,31 +207,19 @@ object LSPDemoForm: TLSPDemoForm
   end
   object PageControl1: TPageControl
     Left = 0
-    Top = 399
-    Width = 707
-    Height = 128
-    Margins.Left = 2
-    Margins.Top = 2
-    Margins.Right = 2
-    Margins.Bottom = 2
+    Top = 598
+    Width = 1061
+    Height = 193
     ActivePage = TabSheet1
     Align = alBottom
     TabOrder = 3
     object TabSheet1: TTabSheet
-      Margins.Left = 2
-      Margins.Top = 2
-      Margins.Right = 2
-      Margins.Bottom = 2
       Caption = 'Log messages'
       object StatusMemo: TMemo
         Left = 0
         Top = 0
-        Width = 699
-        Height = 100
-        Margins.Left = 2
-        Margins.Top = 2
-        Margins.Right = 2
-        Margins.Bottom = 2
+        Width = 1053
+        Height = 159
         Align = alClient
         BorderStyle = bsNone
         Lines.Strings = (
@@ -298,31 +229,23 @@ object LSPDemoForm: TLSPDemoForm
       end
     end
     object TabSheet2: TTabSheet
-      Margins.Left = 2
-      Margins.Top = 2
-      Margins.Right = 2
-      Margins.Bottom = 2
       Caption = 'Diagnostics'
       ImageIndex = 1
       object ListBoxDiagnostics: TListBox
         Left = 0
         Top = 0
-        Width = 699
-        Height = 100
-        Margins.Left = 2
-        Margins.Top = 2
-        Margins.Right = 2
-        Margins.Bottom = 2
+        Width = 1053
+        Height = 159
         Align = alClient
         BevelInner = bvNone
         BevelOuter = bvNone
         BorderStyle = bsNone
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clWindowText
-        Font.Height = -11
+        Font.Height = -16
         Font.Name = 'Consolas'
         Font.Style = []
-        ItemHeight = 13
+        ItemHeight = 19
         ParentFont = False
         TabOrder = 0
         OnDblClick = ListBoxDiagnosticsDblClick

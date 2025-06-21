@@ -1,2 +1,2 @@
-# Disable any line endings auto conversion.
-* -text
+# Auto detect text files and perform LF normalization
+* text=auto
