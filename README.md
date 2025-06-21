@@ -1,6 +1,9 @@
-# Delphi/Pascal LSP Client
+# Delphi/Pascal LSP Client V1.x
 
-A language server protocal client written in Pascal (Delphi).
+A language server protocol client written in Pascal (Delphi).
+
+This version is compatible with older Delphi versions (as well as new ones).
+
 
 # Content
 
