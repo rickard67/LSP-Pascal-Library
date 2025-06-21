@@ -2,13 +2,13 @@
 
 A language server protocol client written in Pascal (Delphi).
 
- ## About this new version
- The component now uses serialization, instead of manually parsing the JSON code.
- This change means it only works in Delphi 11.3 or later.
+## About this new version
+The component now uses serialization, instead of manually parsing the JSON code.
+This change means it only works in Delphi 11.3 or later.
  
- Version 1.x is still available in a separate fork "LSP-Pascal_Library-(xsuperobject)". 
+Version 1.x is still available in a separate fork "LSP-Pascal-Library_V1". 
  
- How to update to this new version [update help](docs/Migrate_to_new_version.md).
+How to update to this new version [update help](docs/Migrate_to_new_version.md).
  
  ---
  This was added by PyScripter (https://github.com/pyscripter)
