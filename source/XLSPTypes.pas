@@ -14,7 +14,7 @@
  * Embarcadero Technologies, Inc is not permitted to use or redistribute
  * this source code without explicit permission.
  *
- * Copyright © 2023 Rickard Johansson. All rights reserved.
+ * Copyright © 2025 Rickard Johansson. All rights reserved.
  *
 *)
 
