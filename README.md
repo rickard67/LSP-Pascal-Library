@@ -34,7 +34,7 @@ A language server protocol client written in Pascal (Delphi).
 - [Using the Library](#using-the-library)
    - [Running the LSP server](#running-the-lsp-server)
    - [Send requests and notifications to the server](#send-requests-and-notifications-to-the-server)
-   - [SendRequest with anonymous methods](###SendRequest-with-anonymous-methods)
+   - [SendRequest with anonymous methods](#sendrequest-with-anonymous-methods)
    - [Notifications or responces sent from the server](#notifications-or-responses-sent-from-the-server)
 - [Initialize](#initialize)
 - [Register/Unregister Capability](#registerunregister-capability)
