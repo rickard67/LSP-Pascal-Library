@@ -160,7 +160,7 @@ begin
 
   sz := ExtractFileDir(Application.ExeName) + '\LSPLog.txt';
   FLSPClient.LogFileName := sz;
-  FLSPClient.LogItems := [liServerMessages, liClientRPCMessages, liServerMessages];
+  FLSPClient.LogToFile := True;
 
   FX := 0;
   FY := 0;
@@ -592,7 +592,7 @@ begin
         end, 100) then
       begin
         Label1.Caption := item.detail;
-        Label2.Caption := item.documentationMarkup.value;
+        Label2.Caption := TLSPMarkupContent.FromJsonRaw(item.documentation).value;
       end;
     end;
   end;
@@ -706,7 +706,24 @@ var
   pt,pm: TPoint;
 begin
   s := value.contents.value;
-  if s = '' then Exit;
+  if s = '' then
+  begin
+    // The response was not a simple string so we need to process
+    // the response from the server.
+    if Length(value.contentsMarkedArray) > 0 then
+    begin
+      // Array of MarkedString (value pair or simple string)
+      for i := 0 to Length(value.contentsMarkedArray) - 1 do
+        s := s + value.contentsMarkedArray[i].value + #13#10;
+    end
+    else
+    begin
+      // MarkedString
+      s := value.contentsMarked.value;
+    end;
+
+    if s = '' then Exit;
+  end;
 
   Label1.Caption := '';
   Label2.Caption := '';
@@ -1043,7 +1060,7 @@ begin
   begin
     item := FCompletionList[0];
     Label1.Caption := item.detail;
-    Label2.Caption := item.documentationMarkup.value;
+    Label2.Caption := TLSPMarkupContent.FromJsonRaw(item.documentation).value;
   end;
 end;
 
