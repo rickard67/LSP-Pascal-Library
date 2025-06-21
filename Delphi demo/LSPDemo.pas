@@ -61,12 +61,12 @@ type
     procedure tbSaveClick(Sender: TObject);
     procedure tbCloseServerClick(Sender: TObject);
   private
-    FCompletionList: TStringList;
+    FCompletionList: TList<TLSPCompletionItem>;
     FFileName: string;
     FInitDir: string;
     FLoaded: Boolean;
     FLSPClient: TLSPClient;
-    FMemoChanges: TList<TLSPTextDocumentContentChangeEvent>;
+    FMemoChanges: TObjectList<TLSPBaseTextDocumentContentChangeEvent>;
     FServerArguments: string;
     FServerOptions: string;
     FServerPath: string;
@@ -76,18 +76,23 @@ type
     procedure ApplyChangesToDocument(const newText: string; const range: TLSPRange);
     function GetStringAtCaret: string;
     procedure InsertCompletionItem(const sn: string);
-    procedure OnCompletion(Sender: TObject; const list: TLSPCompletionList; const errorCode: Integer; const errorMessage: string);
-    procedure OnError(Sender: TObject; const errorCode: Integer; const errorMsg: string);
+    procedure OnCompletion(Sender: TObject; const Id: Integer; const list:
+        TLSPCompletionList);
+    procedure OnError(Sender: TObject; const id, errorCode: Integer; const
+        errorMsg: string; retriggerRequest: Boolean = False);
     procedure OnExit(Sender: TObject; exitCode: Integer; const bRestartServer: Boolean);
-    procedure OnHover(Sender: TObject; const value: TLSPHover; const errorCode: Integer; const errorMessage: string);
+    procedure OnHover(Sender: TObject; const Id: Integer; const value:
+        TLSPHoverResult);
     procedure OnInitialize(Sender: TObject; var value: TLSPInitializeParams);
-    procedure OnInitialized(Sender: TObject; var value: TLSPInitializeResultParams);
+    procedure OnInitialized(Sender: TObject; var value: TLSPInitializeResult);
     procedure OnLogMessages(Sender: TObject; const ntype: TLSPMessageType; const msg: string);
     procedure OnPublishDiagnostics(Sender: TObject; const uri: string; const version: Cardinal; const diagnostics: TArray<TLSPDiagnostic>);
     procedure OnShowMessage(Sender: TObject; const ntype: TLSPMessageType; const msg: string);
-    procedure OnShutdown(Sender: TObject; const errorCode: Integer; const errorMessage: string);
-    procedure OnWorkspaceApplyEdit(Sender: TObject; const value: TLSPApplyWorkspaceEditParams;
-        var responseValue: TLSPApplyWorkspaceEditResponse; var errorCode: Integer; var errorMessage: string);
+    procedure OnShutdown(Sender: TObject);
+    procedure OnWorkspaceApplyEdit(Sender: TObject; const value:
+        TLSPApplyWorkspaceEditParams; var responseValue:
+        TLSPApplyWorkspaceEditResponse; var errorCode: Integer; var errorMessage:
+        string);
     function SelectionToRange(const ASelStart, ASelLen: Integer; const ACaretPos: TPoint): TLSPRange;
     procedure SendCompletionRequest(const filename: string);
     procedure SendDidChangeDocumentToServer(const filename: string);
@@ -97,15 +102,21 @@ type
     procedure ShowDocumentRequest(Sender: TObject; const uri: string; const bExternal: Boolean; const bTakeFocus: Boolean; const startPos, endPos: TLSPPosition; var bSuccess: Boolean);
     procedure UpdateCompletionListBox;
   public
+    ini: TMemIniFile;
   end;
 var
   LSPDemoForm: TLSPDemoForm;
-  ini: TMemIniFile;
 
 implementation
 
 uses
-  XSuperObject, options, XLSPFunctions, System.Math;
+  System.UITypes,
+  System.Types,
+  System.Math,
+  System.JSON,
+  options,
+  XLSPFunctions,
+  XLSPUtils;
 
 {$R *.dfm}
 
@@ -113,13 +124,14 @@ procedure TLSPDemoForm.FormDestroy(Sender: TObject);
 begin
   FMemoChanges.Free;
   FCompletionList.Free;
+  ini.Free;
 end;
 
 procedure TLSPDemoForm.FormCreate(Sender: TObject);
 var
   sz: string;
 begin
-  FMemoChanges := TList<TLSPTextDocumentContentChangeEvent>.Create;
+  FMemoChanges := TObjectList<TLSPBaseTextDocumentContentChangeEvent>.Create;
   sz := ExtractFileDir(Application.ExeName) + '\LSPOptions.ini';
   ini := TMemIniFile.Create(sz);
 
@@ -130,7 +142,7 @@ begin
   FServerRootPath := ini.ReadString('LSP','ServerRootPath','');
   FServerOptions := StringReplace(ini.ReadString('LSP','ServerOptions',''), '|', #13#10, [rfReplaceAll]);
 
-  FCompletionList := TStringList.Create;
+  FCompletionList := TList<TLSPCompletionItem>.Create;
 
   FLSPClient := TLSPClient.Create(Self);
   FLSPClient.OnInitialize := OnInitialize;
@@ -148,7 +160,7 @@ begin
 
   sz := ExtractFileDir(Application.ExeName) + '\LSPLog.txt';
   FLSPClient.LogFileName := sz;
-  FLSPClient.LogToFile := True;
+  FLSPClient.LogItems := [liServerMessages, liClientRPCMessages, liServerMessages];
 
   FX := 0;
   FY := 0;
@@ -157,11 +169,9 @@ begin
   PageControl1.ActivePageIndex := 0;
 end;
 
-procedure TLSPDemoForm.OnCompletion(Sender: TObject; const list: TLSPCompletionList; const errorCode: Integer;
-  const errorMessage: string);
+procedure TLSPDemoForm.OnCompletion(Sender: TObject; const Id: Integer; const
+    list: TLSPCompletionList);
 var
-  i: Integer;
-  s: string;
   r: LongInt;
   pt: TPoint;
   item,obj: TLSPCompletionItem;
@@ -186,24 +196,12 @@ begin
   end;
 
   FCompletionList.Clear;
-  for i := 0 to list.items.Count - 1 do
-  begin
-    item := list.items[i];
-    s := item.slabel;
-
-    obj := TLSPCompletionItem.Create;
-    obj.slabel := item.slabel;
-    obj.kind := item.kind;
-    obj.detail := item.detail;
-    obj.documentation := item.documentation;
-    obj.data := item.data;
-    FCompletionList.AddObject(s,obj);
-  end;
+  FCompletionList.AddRange(list.items);
   ListBox1.SetFocus;
   UpdateCompletionListBox;
 end;
 
-procedure TLSPDemoForm.OnError(Sender: TObject; const errorCode: Integer; const errorMsg: string);
+procedure TLSPDemoForm.OnError(Sender: TObject; const id, errorCode: Integer; const errorMsg: string; retriggerRequest: Boolean = False);
 var
   s: string;
 begin
@@ -214,7 +212,6 @@ end;
 procedure TLSPDemoForm.OnInitialize(Sender: TObject; var value: TLSPInitializeParams);
 var
   s: string;
-  Json: ISuperObject;
   ls: TStringList;
 begin
   StatusMemo.Lines.Add('Initializing...');
@@ -222,11 +219,7 @@ begin
   // Set server options
   s := StringReplace(FServerOptions,#13#10,'',[rfReplaceAll]);
   s := StringReplace(s,#32,'',[rfReplaceAll]);
-  if s <> '' then
-    Json := TSuperObject.Create(s)
-  else
-    Json := nil;
-  value.initializationOptions := Json;
+  value.initializationOptions := s;
 
   // Set root uri
   value.AddRoot(FServerRootPath);
@@ -247,7 +240,8 @@ begin
   value.capabilities.AddPublishDiagnosticsSupport(True,False,False,False);
 
   // Capabilities/textDocument/completion
-  value.capabilities.AddCompletionSupport(False,True,False,True,True,False,False,False,False);
+  value.capabilities.AddCompletionSupport(False,True,False,True,True,False,False,
+    False,False, [], ['details', 'documention']);
 
   // Capabilities/textDocument/hover
   value.capabilities.AddHoverSupport(False,True,True);
@@ -271,7 +265,8 @@ begin
   value.processId := GetCurrentProcessId;
 end;
 
-procedure TLSPDemoForm.OnInitialized(Sender: TObject; var value: TLSPInitializeResultParams);
+procedure TLSPDemoForm.OnInitialized(Sender: TObject; var value:
+    TLSPInitializeResult);
 begin
   Memo1.Lines.Clear;
   Memo1.Enabled := False;
@@ -315,7 +310,7 @@ begin
       item := TDiagnosticItem.Create;
       item.Range := diagnostics[i].range;
       item.Severity := diagnostics[i].severity;
-      item.MessageStr := diagnostics[i].messageString;
+      item.MessageStr := diagnostics[i].message;
 
       // Construct display line
       case item.Severity of
@@ -326,7 +321,7 @@ begin
         else
           ws := '';
       end;
-      s := ws + ' Line: ' + IntToStr(item.Range.startPos.line) + ' - ' + item.MessageStr;
+      s := ws + ' Line: ' + IntToStr(item.Range.start.line) + ' - ' + item.MessageStr;
 
       ListBoxDiagnostics.Items.AddObject(s, item);
     end;
@@ -353,19 +348,18 @@ begin
   MessageDlgPos(msg, mt, [mbOK], 0, pt.x, pt.y);
 end;
 
-procedure TLSPDemoForm.OnShutdown(Sender: TObject; const errorCode: Integer; const errorMessage: string);
+procedure TLSPDemoForm.OnShutdown(Sender: TObject);
 begin
-  // Shutdown was successful. Send exit request to close the server.
-  (Sender as TLSPClient).SendRequest(lspExit);
+  // Shutdown was successful. Send exit notification to close the server.
+  (Sender as TLSPClient).SendNotification(lspExit);
 end;
 
 procedure TLSPDemoForm.OnWorkspaceApplyEdit(Sender: TObject; const value: TLSPApplyWorkspaceEditParams;
   var responseValue: TLSPApplyWorkspaceEditResponse; var errorCode: Integer; var errorMessage: string);
 var
   i,j: Integer;
-  sz: string;
   change: TLSPBaseParams;
-  edit: TLSPTextEdit;
+  edit: TLSPAnnotatedTextEdit;
 begin
   if not Assigned(value) then Exit;
   if not Assigned(value.edit) then Exit;
@@ -410,18 +404,17 @@ end;
 
 procedure TLSPDemoForm.ApplyChangesToDocument(const newText: string; const range: TLSPRange);
 var
-  s: string;
-  i,n,len: Integer;
+  i, len: Integer;
 begin
-  if range.startPos.line = range.endPos.line then
+  if range.start.line = range.&end.line then
   begin
     // Single line
 
     // Length of selection
-    len := range.endPos.character - range.startPos.character;
+    len := range.&end.character - range.start.character;
 
     // Set selection in memo
-    Memo1.CaretPos := Point(range.startPos.character, range.startPos.line);
+    Memo1.CaretPos := Point(range.start.character, range.start.line);
     Memo1.SelLength := len;
 
     // Replace selection
@@ -432,17 +425,17 @@ begin
     // Multiple lines
 
     // Calculate the length of the selection
-    len := Length(Memo1.Lines[range.startPos.line]) - Integer(range.startPos.character);
-    len := len + Integer(range.endPos.character) + 2;
+    len := Length(Memo1.Lines[range.start.line]) - Integer(range.start.character);
+    len := len + Integer(range.&end.character) + 2;
 
-    if range.endPos.line - 1 >= range.startPos.line + 1 then
+    if range.&end.line - 1 >= range.start.line + 1 then
     begin
-      for i := range.startPos.line + 1 to range.endPos.line - 1 do
+      for i := range.start.line + 1 to range.&end.line - 1 do
         len := len + Length(Memo1.Lines[i]) + 2;
     end;
 
     // Set selection in memo
-    Memo1.CaretPos := Point(range.startPos.character, range.startPos.line);
+    Memo1.CaretPos := Point(range.start.character, range.start.line);
     Memo1.SelLength := len;
 
     // Replace selection
@@ -512,7 +505,7 @@ const
   csym: string = '()[]{},.;:"=<>+/\?!|¨_¤&´`^*%' + #39 + #9 + #32 + #160;
 var
   s: string;
-  x,z,len: Integer;
+  x,z: Integer;
   selStart,selLength: Integer;
   CaretPos: TPoint;
   change: TLSPTextDocumentContentChangeEvent;
@@ -558,8 +551,8 @@ var
 begin
   if (Key = VK_SPACE) or (Key = VK_RETURN) then
   begin
-    item := TLSPCompletionItem(ListBox1.Items.Objects[ListBox1.ItemIndex]);
-    InsertCompletionItem(item.slabel);
+    item := FCompletionList[ListBox1.ItemIndex];
+    InsertCompletionItem(item.&label);
   end
   else if (Key in [VK_LEFT,VK_RIGHT]) then
   begin
@@ -577,7 +570,7 @@ end;
 
 procedure TLSPDemoForm.ListBox1KeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
 var
-  item: TLSPCompletionItem;
+  Item: TLSPCompletionItem;
 begin
   if (Key = VK_SPACE) or (Key = VK_RETURN) or (Key = VK_ESCAPE) then
   begin
@@ -587,11 +580,20 @@ begin
   end
   else if (Key = VK_UP) or (Key = VK_DOWN) then
   begin
-    if ListBox1.Count > 0 then
+    if (ListBox1.Count > 0) and FLSPClient.IsRequestSupported(lspCompletionItemResolve) then
     begin
-      item := TLSPCompletionItem(ListBox1.Items.Objects[ListBox1.ItemIndex]);
-      Label1.Caption := item.detail;
-      Label2.Caption := item.documentation.value;
+      var Params := TSmartPtr.Make(TLSPCompletionItemResolveParams.Create)();
+      Params.completionItem := FCompletionList[ListBox1.ItemIndex];
+      if FLSPClient.SendSyncRequest(lspCompletionItemResolve, Params,
+        procedure(Json: TJSONObject)
+        begin
+          if ResponseError(Json) then Exit;
+          Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
+        end, 100) then
+      begin
+        Label1.Caption := item.detail;
+        Label2.Caption := item.documentationMarkup.value;
+      end;
     end;
   end;
 end;
@@ -607,8 +609,8 @@ begin
   item := TDiagnosticItem(ListBoxDiagnostics.Items.Objects[index]);
 
   // Move to position in code and select item
-  Memo1.CaretPos := Point(item.Range.startPos.character, item.Range.startPos.line);
-  Memo1.SelLength := item.Range.endPos.character - item.Range.startPos.character;
+  Memo1.CaretPos := Point(item.Range.start.character, item.Range.start.line);
+  Memo1.SelLength := item.Range.&end.character - item.Range.start.character;
   Memo1.SetFocus;
 end;
 
@@ -694,8 +696,8 @@ begin
   tbOpen.Enabled := False;
 end;
 
-procedure TLSPDemoForm.OnHover(Sender: TObject; const value: TLSPHover; const errorCode: Integer;
-  const errorMessage: string);
+procedure TLSPDemoForm.OnHover(Sender: TObject; const Id: Integer; const value:
+    TLSPHoverResult);
 var
   s,w: string;
   i: Integer;
@@ -761,10 +763,10 @@ begin
   // Convert memo selection to range
   ln := ACaretPos.Y;
   x := ACaretPos.X;
-  Result.startPos.line := ln;
-  Result.startPos.character := x;
-  Result.endPos.line := ln;
-  Result.endPos.character := x;
+  Result.start.line := ln;
+  Result.start.character := x;
+  Result.&end.line := ln;
+  Result.&end.character := x;
   i := 0;
   while i < ASelLen do
   begin
@@ -772,8 +774,8 @@ begin
     len := Length(s) - x;
     if i + len >= ASelLen then
     begin
-      Result.endPos.line := ln;
-      Result.endPos.character := ASelLen - i + x;
+      Result.&end.line := ln;
+      Result.&end.character := ASelLen - i + x;
       Break;
     end;
     Inc(i, len + 2); // Line length + linefeed
@@ -798,7 +800,7 @@ begin
   if FMemoChanges.Count > 0 then
     SendDidChangeDocumentToServer(fileName);
 
-  params := TLSPCompletionParams.Create;
+  params := TSmartPtr.Make(TLSPCompletionParams.Create)();
   params.textDocument.uri := FilePathToUri(fileName);
   params.position.line := Memo1.CaretPos.Y;
   params.position.character := Memo1.CaretPos.X;
@@ -807,52 +809,45 @@ end;
 
 procedure TLSPDemoForm.SendDidChangeDocumentToServer(const filename: string);
 var
-  i: Integer;
   syncKind: Integer;
-  ext,sm: string;
   params: TLSPDidChangeTextDocumentParams;
   content: TLSPBaseTextDocumentContentChangeEvent;
 begin
   if FMemoChanges.Count = 0 then Exit;
   if not FLSPClient.IsRequestSupported(lspDidChangeTextDocument) then Exit;
 
-  params := TLSPDidChangeTextDocumentParams.Create;
-  params.textDocument := TLSPVersionedTextDocumentIdentifier.Create;
+  params := TSmartPtr.Make(TLSPDidChangeTextDocumentParams.Create)();
   params.textDocument.uri := FilePathToUri(filename);
   params.textDocument.version := Memo1.Tag + 1;
   Memo1.Tag := Memo1.Tag + 1;
 
-  syncKind := FLSPClient.GetSyncKind(ext);
+  syncKind := FLSPClient.GetSyncKind;
 
   // Set changes
   if syncKind = TLSPTextDocumentSyncKindRec.Incremental then
-  begin
-    for i := 0 to FMemoChanges.Count - 1 do
-      params.contentChanges.Add(FMemoChanges[i]);
-  end
+    params.contentChanges := FMemoChanges.ToArray
   else if syncKind = TLSPTextDocumentSyncKindRec.Full then
   begin
     content := TLSPBaseTextDocumentContentChangeEvent.Create;
     content.text := Memo1.Lines.Text;
-    params.contentChanges.Add(content);
+    params.contentChanges := [content]; // will be cleared when params is freed
   end;
 
   // Send request to server
-  FLSPClient.SendRequest(lspDidChangeTextDocument, '', params);
+  FLSPClient.SendNotification(lspDidChangeTextDocument, '', params);
 
+  if syncKind = TLSPTextDocumentSyncKindRec.Incremental then
+    params.contentChanges := [];  // To avoid double freeing the changes
   FMemoChanges.Clear;
 end;
 
 procedure TLSPDemoForm.SendDidOpenDocumentToServer(const filename: string);
 var
-  ext,sm: string;
-  bIncludeText: Boolean;
   params: TLSPDidOpenTextDocumentParams;
-  options: TLSPTextDocumentRegistrationOptions;
 begin
   if not FLSPClient.IsRequestSupported(lspDidOpenTextDocument) then Exit;
 
-  params := TLSPDidOpenTextDocumentParams.Create;
+  params := TSmartPtr.Make(TLSPDidOpenTextDocumentParams.Create)();
   params.textDocument.uri := FilePathToUri(filename);
   params.textDocument.version := 0;
   Memo1.Tag := 0;
@@ -860,13 +855,13 @@ begin
   // Our demo server handles PHP documents
   params.textDocument.languageId := 'php';
 
-  if FLSPClient.IncludeText(lspDidOpenTextDocument, filename, True) then
+  if FLSPClient.IncludeText(lspDidOpenTextDocument, True) then
   begin
     // Send the whole document to the server
     params.textDocument.text := Memo1.text;
   end;
 
-  FLSPClient.SendRequest(lspDidOpenTextDocument, '', params);
+  FLSPClient.SendNotification(lspDidOpenTextDocument, '', params);
 end;
 
 procedure TLSPDemoForm.SendDidSaveDocumentToServer(const filename: string);
@@ -879,16 +874,15 @@ begin
   params.textDocument.uri := FilePathToUri(filename);
 
   // Send the whole document to the server ?
-  if FLSPClient.IncludeText(lspDidSaveTextDocument, filename, False) then
+  if FLSPClient.IncludeText(lspDidSaveTextDocument, False) then
     params.text := Memo1.text;
 
-  FLSPClient.SendRequest(lspDidSaveTextDocument, '', params);
+  FLSPClient.SendNotification(lspDidSaveTextDocument, '', params);
 end;
 
 procedure TLSPDemoForm.SendHoverRequest(const filename: string);
 var
   params: TLSPHoverParams;
-  sw: string;
   i,x,n,cx,cy: Integer;
   pt: TPoint;
   r: LongInt;
@@ -915,7 +909,7 @@ begin
   if (cx < 0) or (cx > Length(Memo1.Lines[cy])) then Exit;
 
   // Send hover request to server
-  params := TLSPHoverParams.Create;
+  params := TSmartPtr.Make(TLSPHoverParams.Create)();
   params.textDocument.uri := FilePathToUri(FFileName);
   params.position.line := cy;
   params.position.character := cx;
@@ -991,7 +985,6 @@ end;
 
 procedure TLSPDemoForm.UpdateCompletionListBox;
 var
-  i: Integer;
   s,sf: string;
   item: TLSPCompletionItem;
 begin
@@ -1002,12 +995,11 @@ begin
   ListBox1.Items.BeginUpdate;
   try
     ListBox1.Clear;
-    for i := 0 to FCompletionList.Count - 1 do
+    for item in FCompletionList do
     begin
-      s := FCompletionList[i];
+      s := item.&label;
       if (sf = '') or (Pos(sf, s) = 1) then
       begin
-        item := TLSPCompletionItem(FCompletionList.Objects[i]);
         if item.kind = TLSPCompletionItemKind.cMethod then
           s := 'Method ' + s
         else if item.kind = TLSPCompletionItemKind.cFunction then
@@ -1040,7 +1032,7 @@ begin
           s := 'Color ' + s
         else if item.kind = TLSPCompletionItemKind.cConstant then
           s := 'Const ' + s;
-        ListBox1.Items.AddObject(s, item);
+        ListBox1.Items.Add(s);
       end;
     end;
   finally
@@ -1049,9 +1041,9 @@ begin
 
   if ListBox1.Count > 0 then
   begin
-    item := TLSPCompletionItem(ListBox1.Items.Objects[0]);
+    item := FCompletionList[0];
     Label1.Caption := item.detail;
-    Label2.Caption := item.documentation.value;
+    Label2.Caption := item.documentationMarkup.value;
   end;
 end;
 
