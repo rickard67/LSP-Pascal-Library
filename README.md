@@ -1,51 +1,31 @@
-# Delphi/Pascal LSP Client
+﻿# Delphi/Pascal LSP Client v2.x
 
-A language server protocal client written in Pascal (Delphi).
+A language server protocol client written in Pascal (Delphi).
 
- ## Changes in this fork by PyScripter (https://github.com/pyscripter)
-   *  Removed third-party dependencies
-      - Replaced XSuperObject (which is very [slow](https://github.com/hydrobyte/TestJSON)) with System.JSON and System.JSONSerializers.  
-      - Remove Indy dependency (was not working anyway). Used System.Net.Socket instead.
-   *  Fixed warnings and hints
-   *  Fixed numerous memory leaks
-   *  Improvements to XLSPExecute
-      - Asynchronous reading
-      - Avoid calling Synchronize and Sleep
- *  Allow for handling server responses with anonymous methods.
-     The handler is executed in the main thread.  
-     Example:
-     ```pascal
-       FLSPClient.SendRequest(lspCompletionItemResolve, ResolveParams,
-       procedure(Json: TJSONObject)
-       var
-         Item: TLSPCompletionItem;
-       begin
-         if ResponseError(Json) then Exit;
-         Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
-         Memo1.Lines.Add(TSerializer.Serialize(item));
-       end);
-    ```   
- *  Added Synchronous requests (SendSyncRequest).
-    SendSyncRequest blocks until the server responds or a timeout expires.
-    The handler is executed in the Server thread.  
-    Example:
-    ```pascal
-      var Item: TLSPCompletionItem;
-      if FLSPClient.SendSyncRequest(lspCompletionItemResolve, ResolveParams,
-      procedure(Json: TJSONObject)
-      begin
-        if ResponseError(Json) then Exit;
-        Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
-      end, 400) then
-        Memo1.Lines.Add(TSerializer.Serialize(Item));
-    ```
- *  The code base was enormously streamlined. (e.g. XSLPFunction down to 1400 from 7000+ lines)
- *  Removed unnecessary aliases in XLSPTypes
- *  Refactored error handling in XLSP functions
- *  Separated the handling of requests, notifications and responses
- *  Unique request id passed to the request handlers
-
-**TODO:** Update the Demo.
+## About this new version
+The component now uses serialization, instead of manually parsing the JSON code.
+This change means it only works in Delphi 11.3 or later.
+ 
+Version 1.x is still available in a separate fork "LSP-Pascal-Library_V1". 
+ 
+How to update to this new version [update help](docs/Migrate_to_new_version.md).
+ 
+ ---
+ This was added by PyScripter (https://github.com/pyscripter)
+   - Replaced XSuperObject with System.JSON and System.JSONSerializers.  
+   - Use System.Net.Socket. The client can act as both socket client or server.
+   - Fixed warnings and hints
+   - Fixed numerous memory leaks
+   - Improvements to XLSPExecute
+       - Asynchronous reading
+       - Avoid calling Synchronize and Sleep
+   - Allow for handling server responses with anonymous methods.
+   - The code base was enormously streamlined. (e.g. XSLPFunction down to 1400 from 7000+ lines)
+   - Removed unnecessary aliases in XLSPTypes
+   - Refactored error handling in XLSP functions
+   - Separated the handling of requests, notifications and responses
+   - Unique request id passed to the request handlers
+---
 
 ## Content
 
@@ -54,7 +34,8 @@ A language server protocal client written in Pascal (Delphi).
 - [Using the Library](#using-the-library)
    - [Running the LSP server](#running-the-lsp-server)
    - [Send requests and notifications to the server](#send-requests-and-notifications-to-the-server)
-   - [Notifications or responces sent from the server](#notifications-or-responces-sent-from-the-server)
+   - [SendRequest with anonymous methods](#sendrequest-with-anonymous-methods)
+   - [Notifications or responces sent from the server](#notifications-or-responses-sent-from-the-server)
 - [Initialize](#initialize)
 - [Register/Unregister Capability](#registerunregister-capability)
 - [Closing or exiting the server](#closing-or-exiting-the-server)
@@ -194,6 +175,22 @@ Use the function below to run a server.
 
 ``` LSPClient1.RunServer(const ACommandline, ADir: string); ```
 
+Now you can use SendRequest(lspInitialize) to initialize the server and start
+communicating. 
+
+You can also use an event to make sure the server is properly started before you
+send a request.
+
+```pascal 
+  LSPClient1.OnServerConnected := OnServerConnected;
+  
+  procedure TMainForm.OnServerConnected(Sender: TObject);
+  begin
+    if Sender is TLSPClient then
+      TLSPClient(Sender).SendRequest(lspInitialize);
+  end;
+```
+
 
 ### Send requests to the server
 
@@ -222,7 +219,7 @@ procedure HandleResponseError(Sender: TObject; const id, errorCode: Integer; con
 FLSPClient1.OnResponseError := HandlResponseError;
 ```
 
-In the imnplementation of HandleResponseError you can use GetKindFromId to get the TLSPKind
+In the implementation of HandleResponseError you can use GetKindFromId to get the TLSPKind
 of the failed request
 
 ```pascal
@@ -231,21 +228,21 @@ var Kind := TLSPKind(GetKindFromId(Id));
 
 ### Send notifications to the server
 
-Use the function "NotifyServer" to send a request or notification to the server. The first
+Use the function "SendNotification" to send a notification to the server. The first
 argument indicate the type of notification and automatically set the "method" in the Json
 request that is sent to the server.
 
 The function is declared as:
 
 ```pascal
-procedure TLSPClient.NotifyServer(const lspKind: TLSPKind; const method: string;
+procedure TLSPClient.SendNotification(const lspKind: TLSPKind; const method: string;
   const params: TLSPBaseParams; const paramJSON: string);
 ```
 
 ### Memory management
 
-When you create a TLSPBaseParams object to pass to SendRequest or NotifyServer you
-need to free it after you call the the Sent method.   XLSPUtils provides a smart 
+When you create a TLSPBaseParams object to pass to SendRequest or SendNotification you
+need to free it after you call the the Sent method. XLSPUtils provides a smart 
 pointer record to automate the object destruction and avoid using  `try finally`.
 You use it like this:
 ```pascal
@@ -255,10 +252,9 @@ begin
   Params := TSmartPtr.Make(TLSPDidChangeTextDocumentParams.Create)();
 ```
 
-### Notifications or responces sent from the server
-All responces and notifications are handled as events. You can check for an error
-in the event. Error codes are stored in TLSPErrorCodes as enumerated types values,
-as seen below.
+### Notifications or responses sent from the server
+All responses and notifications are normally handled as events. But you can also
+handle server responses with anonymous methods.
 
 ```pascal
 // The event catches the response from the server
@@ -270,7 +266,7 @@ procedure OnOnDocumentDiagnostic1(Sender: TObject; const Id: Integer; const kind
 begin
   if kind = 'unchanged' then Exit;
   
-  if (ErrorCode = Integer(TLSPErrorCodes.ServerCancelled)) and retriggerRequest then
+  if retriggerRequest then
   begin
     // Re-trigger the document diagnostic request
     ...
@@ -279,6 +275,38 @@ begin
   ...
 end;
 ``` 
+
+### SendRequest with anonymous methods
+
+The handler is executed in the main thread using SendRequest().
+  
+Example:
+```pascal
+  FLSPClient.SendRequest(lspCompletionItemResolve, ResolveParams,
+  procedure(Json: TJSONObject)
+  var
+    Item: TLSPCompletionItem;
+  begin
+    if ResponseError(Json) then Exit;
+    Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
+    Memo1.Lines.Add(TSerializer.Serialize(item));
+  end);
+```   
+
+The handler is executed in the Server thread using SendSyncRequest().
+SendSyncRequest blocks until the server responds or a timeout expires.
+  
+Example:
+```pascal
+ var Item: TLSPCompletionItem;
+ if FLSPClient.SendSyncRequest(lspCompletionItemResolve, ResolveParams,
+ procedure(Json: TJSONObject)
+ begin
+   if ResponseError(Json) then Exit;
+   Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
+ end, 400) then
+   Memo1.Lines.Add(TSerializer.Serialize(Item));
+```
 
 ## Initialize
 
@@ -343,7 +371,7 @@ You should check LSPClient1.ServerCapablitities before sending requests and noti
 to make sure the server can handle them.
 
 E.g. in a SendWillSaveNotification() function you could add
-```pascal 
+```pascal
 if not LClient.IsRequestSupported(lspWillSaveTextDocument) then Exit;
 
 // Send request
@@ -373,7 +401,7 @@ FindDynamicCapability(const method: string): TLSPTextDocumentRegistrationOptions
 Test if the returned object is of the correct type
 and typecast it (see below).
 
-```pascal 
+```pascal
 var
   i: Integer;
   watcher: TLSPFileSystemWatcher;
@@ -552,7 +580,7 @@ begin
   params.textDocument.languageId := 'php';
   params.textDocument.text := Memo1.text;
 
-  FLSPClient1.NotifyServer(lspDidOpenTextDocument, '', params);
+  FLSPClient1.SendNotification(lspDidOpenTextDocument, '', params);
  ```
  Language identifiers are listed at the end of this document.
  
@@ -595,7 +623,7 @@ begin
     params.contentChanges.Add(content);
   end;
   
-  FLSPClient1.NotifyServer(lspDidChangeTextDocument, '', params);
+  FLSPClient1.SendNotification(lspDidChangeTextDocument, '', params);
 end;
 ```
 
@@ -612,7 +640,7 @@ begin
   params := TSmartPtr.Make(TLSPDidCloseTextDocumentParams.Create)();
   params.textDocument.uri := FilePathToUri('c:\source\foo.c');
   
-  LClient.NotifyServer(lspDidCloseTextDocument, '', params); 
+  LClient.SendNotification(lspDidCloseTextDocument, '', params); 
 end;
 ```
 
@@ -636,7 +664,7 @@ begin
     params.text := Memo1.Lines.Text;
   end;
   
-  LClient.NotifyServer(lspDidSaveTextDocument, '', params); 
+  LClient.SendNotification(lspDidSaveTextDocument, '', params); 
 end;
 ```
 
@@ -657,7 +685,7 @@ begin
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.reason := 1;
   
-  LClient.NotifyServer(lspWillSaveTextDocument, '', params);
+  LClient.SendNotification(lspWillSaveTextDocument, '', params);
 end;
 ```
 
@@ -688,7 +716,7 @@ begin
   params.textDocument.uri := FilePathToUri('c:\source\foo.cpp');
   params.reason := 1;
   
-  LClient.NotifyServer(lspWillSaveWaitUntilTextDocument, '', params);
+  LClient.SendRequest(lspWillSaveWaitUntilTextDocument, '', params);
 end;
 
 procedure OnWillSaveWaitUntilTextDocument1(Sender: TObject; const value: TLSPWorkspaceEdit);
@@ -746,7 +774,7 @@ begin
   cell.document := FilePathToUri('c:\source\hi.py');
   params.notebookDocument.cells[1] := cell;
 
-  FLSPClient1.NotifyServer(lspDidOpenNotebookDocument, '', params);
+  FLSPClient1.SendNotification(lspDidOpenNotebookDocument, '', params);
  ```
  
 ### DidChangeNotebookDocument Notification
@@ -786,7 +814,7 @@ begin
     params.change.cells.textContent.changes.Add(content);
   end;
   
-  FLSPClient1.NotifyServer(lspDidChangeNotebookDocument, '', params);
+  FLSPClient1.SendNotification(lspDidChangeNotebookDocument, '', params);
 end;
 ```
 
@@ -804,7 +832,7 @@ begin
   params := TSmartPtr.Make(TLSPDidSaveNotebookDocumentParams.Create)();
   params.notebookDocument.uri := FilePathToUri('c:\source\foo.notebook');
   
-  LClient.NotifyServer(lspDidSaveNotebookDocument, '', params); 
+  LClient.SendNotification(lspDidSaveNotebookDocument, '', params); 
 end;
 ```
 
@@ -827,7 +855,7 @@ begin
   SetLength(params.cellTextDocuments,1);
   params.cellTextDocuments[0].uri := FilePathToUri('c:\source\foo.py');  
   
-  LClient.NotifyServer(lspDidCloseNotebookDocument, '', params); 
+  LClient.SendNotification(lspDidCloseNotebookDocument, '', params); 
 end;
 ```
 
@@ -873,7 +901,7 @@ procedure OnCompletion1(Sender: TObject; const list: TLSPCompletionList; const e
 var
   i: Integer;
   s: string;
-  item,obj: TLSPCompletionItem;
+  item: TLSPCompletionItem;
 begin
   // ---------------------------------------------------------------------------
   // Item defaults ?
@@ -899,14 +927,16 @@ begin
     // Copy objects to ensure the object is still available if we need to send
     // a resolve request to the server.
     item := list.items[i];
-    s := item.slabel;
-
-    obj.slabel := item.slabel;
-    obj.kind := item.kind;
-    obj.detail := item.detail;
-    obj.documentation := item.documentation;
-    obj.data := item.data; // Always include this otherwise CompletionResolve will not work.
-    FCompletionList.Add(obj);
+    
+    // If you copy item to an object make sure you copy the "data" field
+    //
+    // obj := TMyCompletionObject.Create;
+    // obj.&label := item.&label;
+    // obj.kind := item.kind;
+    // obj.detail := item.detail;
+    // obj.documentationMarkup := item.documentationMarkup;
+    // obj.data := item.data; // Always include this otherwise CompletionResolve will not work.
+    FCompletionList.Add(item);
   end;
   UpdateCompletionList;
 end;
@@ -919,7 +949,7 @@ for a given completion item. This is typically used to display additional inform
 for the selected item in an auto completion list.
 
 The completion request will be quicker since the server can skip some information.
-This is why you use completion item resolve requests to recieve the information for 
+This is why you use completion item resolve requests to receive the information for 
 a selected item (when needed).
 
 The response is handled in the OnCompletionItemResolve() event.
@@ -1042,13 +1072,13 @@ begin
   // Process one or more signatures (there may be overloaded functions with different parameters).
   for i := 0 to Length(value.signatures) - 1 do
   begin
-    sLabel := value.signatures[i].slabel;
+    sLabel := value.signatures[i].&label;
     documentationKind := value.signatures[i].documentation.kind;
     documentationValue := value.signatures[i].documentation.value;
     
     for j := 0 to Length(value.signatures[i].parameters) - 1 do
     begin
-      arr[j].sLabel := value.signatures[i].parameters[j].slabel;
+      arr[j].sLabel := value.signatures[i].parameters[j].&label;
       arr[j].documentationKind := value.signatures[i].documentation.kind;
       arr[j].documentationValue := value.signatures[i].documentation.value;
       ...
@@ -1090,7 +1120,7 @@ begin
     item := TSmartPtr.Make(TDiagnosticItem.Create)();
     item.Range := diagnostics[i].range;
     item.Severity := diagnostics[i].severity;
-    item.MessageStr := diagnostics[i].messageString;
+    item.MessageStr := diagnostics[i].&message;
     
     case item.Severity of
       1: ws := '[Error]';
@@ -1156,7 +1186,7 @@ begin
     item := TSmartPtr.Make(TDiagnosticItem.Create)();
     item.Range := items[i].range;
     item.Severity := items[i].severity;
-    item.MessageStr := items[i].messageString;
+    item.MessageStr := items[i].&message;
     
     case item.Severity of
       1: ws := '[Error]';
@@ -1223,7 +1253,7 @@ begin
       item := TSmartPtr.Make(TDiagnosticItem.Create)();
       item.Range := reports[i].items[j].range;
       item.Severity := reports[i].items[j].severity;
-      item.MessageStr := reports[i].items[j].messageString;
+      item.MessageStr := reports[i].items[j].&message;
         
       case item.Severity of
         1: ws := '[Error]';
@@ -3414,7 +3444,7 @@ YAML               yaml
 
 ## License
 
-Copyright (c) 2021+, Rickard Johansson (https://www.rj-texted.se)
+Copyright (c) 2025+, Rickard Johansson (https://www.rj-texted.se)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
