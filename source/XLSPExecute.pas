@@ -268,26 +268,26 @@ begin
     raise;
   end;
 
+  ZeroMemory(@StartupInfo, SizeOf(TStartupInfo));
+  with StartupInfo do
+  begin
+    cb := SizeOf(StartupInfo);
+    dwFlags := STARTF_USESHOWWINDOW or STARTF_USESTDHANDLES;
+    wShowWindow := SW_HIDE;
+    hStdInput := StdInReadPipe;
+    hStdOutput := WriteHandle;
+    hStdError :=  ErrorWriteHandle;
+  end;
+
+  // CurrentDir cannot point to an empty string;
+  if FDir = '' then
+    PCurrentDir := nil
+  else
+    PCurrentDir := PChar(FDir);
+
   try
-    ZeroMemory(@StartupInfo, SizeOf(TStartupInfo));
-    with StartupInfo do
-    begin
-      cb := SizeOf(StartupInfo);
-      dwFlags := STARTF_USESHOWWINDOW or STARTF_USESTDHANDLES;
-      wShowWindow := SW_HIDE;
-      hStdInput := StdInReadPipe;
-      hStdOutput := WriteHandle;
-      hStdError :=  ErrorWriteHandle;
-    end;
-
-    // CurrentDir cannot point to an empty string;
-    if FDir = '' then
-      PCurrentDir := nil
-    else
-      PCurrentDir := PChar(FDir);
-
-    // Run LSP server
     try
+      // Run LSP server
       if not CreateProcess(nil, PChar(FCommandline), nil, nil, True,
         NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, nil, PCurrentDir,
         StartupInfo, FProcessInformation)
