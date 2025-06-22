@@ -342,7 +342,7 @@ begin
             // Write data to the server
             FWriteLock.Enter;
             try
-              if Length(FWriteBytes) > 0 then
+              if not Terminated and (Length(FWriteBytes) > 0) then
               begin
                 if not WriteFile(StdInWritePipe, FWriteBytes[0],
                   Length(FWriteBytes), dBytesWrite, nil)
