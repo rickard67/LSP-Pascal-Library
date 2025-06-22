@@ -569,5 +569,5 @@ begin
 end;
 
 initialization
-  ReportMemoryLeaksOnShutdown := True;
+  ReportMemoryLeaksOnShutdown := False;
 end.

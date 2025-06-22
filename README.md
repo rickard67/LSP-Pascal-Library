@@ -34,7 +34,7 @@ How to update to this new version [update help](docs/Migrate_to_new_version.md).
 - [Using the Library](#using-the-library)
    - [Running the LSP server](#running-the-lsp-server)
    - [Send requests and notifications to the server](#send-requests-and-notifications-to-the-server)
-   - [SendRequest with anonymous methods](#sendrequest-with-anonymous-methods)
+   - [SendRequest with anonymous methods](#send-request-with-anonymous-methods)
    - [Notifications or responces sent from the server](#notifications-or-responses-sent-from-the-server)
 - [Initialize](#initialize)
 - [Register/Unregister Capability](#registerunregister-capability)
@@ -206,7 +206,7 @@ function TLSPClient.SendRequest(const lspKind: TLSPKind;
   const paramJSON: string = ''): Integer;
 ```
 The return value is a unique id you can use to keep track of the request,
-in case ther are multiple outstanding requests of the same type.
+in case there are multiple outstanding requests of the same type.
 
 ### RequestErrorHandling
 
@@ -276,7 +276,7 @@ begin
 end;
 ``` 
 
-### SendRequest with anonymous methods
+### Send request with anonymous methods
 
 The handler is executed in the main thread using SendRequest().
   
@@ -585,7 +585,7 @@ begin
  Language identifiers are listed at the end of this document.
  
 1. A language server can handle several different languageid values. E.g. 'typescript' and 'javascript'. You could connect a file extension to a language id.
-2. Version should be an incremental value that increse with every change (didChangeTextDocument).
+2. Version should be an incremental value that increase with every change (didChangeTextDocument).
  
 ### DidChangeTextDocument Notification
 
@@ -1297,7 +1297,7 @@ end;
 ### Goto Requests
 
 A goto request is sent from the client to the server to resolve one or more locations
-of a symbol at a given position in your document. Usualy under the mouse cursor.
+of a symbol at a given position in your document. Usually under the mouse cursor.
 
 Goto requests support streaming (if you set a partial result token) using the OnProgress 
 event. See OnProgress for example.
@@ -1613,10 +1613,10 @@ begin
                           'source','source.organizeImports'];
   
   // Range
-  params.range.startPos.line := 2;
-  params.range.startPos.character := 0;
-  params.range.endPos.line := 16;
-  params.range.endPos.character := 0;
+  params.range.start.line := 2;
+  params.range.start.character := 0;
+  params.range.&end.line := 16;
+  params.range.&end.character := 0;
   
   // Include diagnostics errors inside the passed range
   ...  
@@ -1944,7 +1944,7 @@ begin
     colorPresentation := values.colorPresentations[i];
     
     // Label or text
-    s := colorPresentation.slabel;
+    s := colorPresentation.&label;
     if colorPresentation.textEdit.newText <> '' then
       s := colorPresentation.textEdit.newText;
     
@@ -2030,10 +2030,10 @@ begin
   params.options.insertSpaces := True;
   params.options.trimTrailingWhitespace := true;
   
-  params.range.startPos.line := 10;
-  params.range.startPos.character := 0;
-  params.range.endPos.line := 200;
-  params.range.endPos.character := 0;
+  params.range.start.line := 10;
+  params.range.start.character := 0;
+  params.range.&end.line := 200;
+  params.range.&end.character := 0;
 
   FLSPClient.SendRequest(lspDocumentRangeFormatting, '', params);
 end;
@@ -2521,10 +2521,10 @@ begin
   params.textDocument.uri := FilePathToUri('c:\source\foo.h');
   
   // Range
-  params.range.startPos.line := 0;
-  params.range.startPos.character := 0;
-  params.range.endPos.line := 200;
-  params.range.endPos.character := 0;
+  params.range.start.line := 0;
+  params.range.start.character := 0;
+  params.range.&end.line := 200;
+  params.range.&end.character := 0;
     
   FLSPClient1.SendRequest(lspSemanticTokensRange, '', params);
 end;
@@ -2554,7 +2554,7 @@ tokens for these editors.
 ```pascal
 FLSPClient1.OnSemanticTokensRefresh := OnSemanticTokensRefresh1;
 
-procedure OnSemanticTokensRange1(Sender: TObject; const errorCode: Integer; const errorMessage: string);
+procedure OnSemanticTokensRefresh1(Sender: TObject; const errorCode: Integer; const errorMessage: string);
 begin
   // Send a new semantic tokens request a file?
   ...  
@@ -2709,7 +2709,7 @@ var
   s: string;
 begin
   // Get the information you want to use
-  s := item.tooltip.value;
+  s := item.tooltipMarkup.value;
   ...
 end;
 ```
@@ -2755,10 +2755,10 @@ begin
   params.textDocument.uri := FilePathToUri('c:\source\foo.php');
   
   // The document range for which inline values should be computed.
-  params.range.startPos.line := 10;
-  params.range.startPos.character := 4;
-  params.range.endPos.line := 20;
-  params.range.endPos.character := 14;
+  params.range.start.line := 10;
+  params.range.start.character := 4;
+  params.range.&end.line := 20;
+  params.range.&end.character := 14;
     
   FLSPClient1.SendRequest(lspInlineValue, '', params);
 end;
@@ -2870,7 +2870,7 @@ begin
   params.event.removed[i].name := 'oldFolder';
   params.event.removed[i].uri := FilePathToUri('c:\source\OldFolder');
 
-  FLSPClient1.NotifyServer(lspDidChangeWorkspaceFolders, '', params);
+  FLSPClient1.SendNotification(lspDidChangeWorkspaceFolders, '', params);
 end;
 ```
 
@@ -2900,7 +2900,7 @@ E.g. this could be sent to a CSS server.
           }
         }''';
 
-   LSPClient.NotifyServer(lspDidChangeConfiguration, '', nil, s);
+   LSPClient.SendNotification(lspDidChangeConfiguration, '', nil, s);
 ```
 
 
@@ -2926,7 +2926,7 @@ begin
   params.changes[1].typ := 3;
   params.changes[1].uri := FilePathToUri('c:\source\old.cpp');
   
-  FLSPClient1.NotifyServer(lspDidChangeWatchedFiles, '', params);
+  FLSPClient1.SendNotification(lspDidChangeWatchedFiles, '', params);
 end;
 ```
 
@@ -2949,7 +2949,7 @@ begin
   for i := 0 to files.Count - 1 do
     params.files[i].uri := files[i];
 
-  FLSPClient1.NotifyServer(lspWorkspaceDidCreateFiles, '', params);
+  FLSPClient1.SendNotification(lspWorkspaceDidCreateFiles, '', params);
 end;
 ```
 
@@ -2972,7 +2972,7 @@ begin
   for i := 0 to files.Count - 1 do
     params.files[i].uri := files[i];
 
-  FLSPClient1.NotifyServer(lspWorkspaceDidDeleteFiles, '', params);
+  FLSPClient1.SendNotification(lspWorkspaceDidDeleteFiles, '', params);
 end;
 ```
  
@@ -2998,7 +2998,7 @@ begin
     params.files[i].newUri := files.ValueFromIndex[i];
   end;
 
-  FLSPClient1.NotifyServer(lspWorkspaceDidRenameFiles, '', params);
+  FLSPClient1.SendNotification(lspWorkspaceDidRenameFiles, '', params);
 end;
 ```
 
