@@ -3,7 +3,7 @@
  *
  * Usage allowed under the restrictions of the MIT license
  *
-  * Unit owner : Rickard Johansson <support@rj-texted.se>
+ * Unit owner : Rickard Johansson <support@rj-texted.se>
  * Web site   : https://www.rj-texted.se
  * Github     : https://github.com/rickard67/LSP-Pascal-Library
  *
@@ -263,6 +263,7 @@ type
     procedure DynCapabilitiesNotify(Sender: TObject; const Item: TLSPRegistration; Action: TCollectionNotification);
     function GetServerInfo: TLSPServerInfo;
     function GetServerCapabilities: TLSPServerCapabilities;
+    procedure SetEnvironmentVars(const AEnvList: string);
   public
     constructor Create(Owner: TComponent); override;
     destructor Destroy; override;
@@ -305,7 +306,7 @@ type
     // The handler is executed in the main thread.
     function SendRequest(const lspKind: TLSPKind;  params: TLSPBaseParams;
       Handler: TLSPResponseHandler): Integer; overload;
-    // Send a synchronous request.  The method does not return unti the
+    // Send a synchronous request.  The method does not return until the
     // server responds.  The handler is executed asynchrounously
     function SendSyncRequest(const lspKind: TLSPKind;  params: TLSPBaseParams;
       Handler: TLSPResponseHandler; Timeout: Integer = 400): Boolean;
@@ -1817,6 +1818,11 @@ end;
 procedure TLSPClient.RunServer(const ACommandline, ADir: string; const AEnvList: string = ''; const AHost: string = '';
     const APort: Integer = 0; const ATransportType: TTransportType = ttStdIO);
 begin
+  // Set environment variables for the current process and the child process
+  // Some language servers may require this to work properly.
+  SetEnvironmentVars(AEnvList);
+
+  // Create the server thread and start it
   FServerThread := TLSPExecuteServerThread.Create(ACommandline, ADir);
   FServerThread.TransportType := ATransportType;
   FServerThread.Host := AHost;
@@ -2310,6 +2316,25 @@ procedure TLSPClient.SetDefaultOptions;
 begin
   ClientName := 'Pascal LSP Client';
   ClientVersion := '1.0';
+end;
+
+procedure TLSPClient.SetEnvironmentVars(const AEnvList: string);
+var
+  ls: TStringList;
+  i: Integer;
+begin
+  if AEnvList = '' then Exit;
+
+  // Set environment variables for the current process and childs
+  ls := TStringlist.Create;
+  try
+    ls.Delimiter := ';';
+    ls.DelimitedText := AEnvList;
+    for i := 0 to ls.Count - 1 do
+      SetEnvironmentVariable(PChar(ls.Names[i]), PChar(ls.ValueFromIndex[i]));
+  finally
+    ls.Free;
+  end;
 end;
 
 procedure TLSPClient.SetExitTimeout(const Value: Integer);

@@ -3,7 +3,7 @@
  *
  * Usage allowed under the restrictions of the MIT license.
  *
-  * Unit owner : Rickard Johansson <support@rj-texted.se>
+ * Unit owner : Rickard Johansson <support@rj-texted.se>
  * Web site   : https://www.rj-texted.se
  * Github     : https://github.com/rickard67/LSP-Pascal-Library
  *
@@ -569,5 +569,5 @@ begin
 end;
 
 initialization
-  ReportMemoryLeaksOnShutdown := True;
+  //ReportMemoryLeaksOnShutdown := True;
 end.
