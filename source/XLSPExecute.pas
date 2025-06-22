@@ -80,7 +80,6 @@ type
   end;
 
 const
-  FORCED_TERMINATION = $FE;
   AcceptTimeout = 5000;
 
 implementation
@@ -185,10 +184,9 @@ type
   PExtOverlapped = ^TExtOverlapped;
   TExtOverlapped = record
     Overlapped: TOverlapped;
-    ServerThread: TLSPExecuteServerThread;
     Buffer: TBytes;
     OnReadProc: TOnReadProc;
-    PipeHandle: THandle;
+    PipeHandle: PHandle;
   end;
 
 // Completion routine for ReadFileEx
@@ -198,13 +196,7 @@ begin
   // Check for errors or pipe closure
   if dwErrorCode <> 0 then
   begin
-    if not PExtOverlapped(lpOverlapped).ServerThread.Terminated then
-    begin
-      OutputDebugString(PChar(
-        Format('ReadCompletionRoutine called with dwErrorCode: %d',
-        [dwErrorCode])));
-      PExtOverlapped(lpOverlapped).ServerThread.Terminate;
-    end;
+    SafeCloseHandle(PExtOverlapped(lpOverlapped).PipeHandle^);
     Exit;
   end;
 
@@ -217,14 +209,13 @@ begin
 
   // Issue another read
   if not ReadFileEx(
-    PExtOverlapped(lpOverlapped).PipeHandle,
+    PExtOverlapped(lpOverlapped).PipeHandle^,
     @PExtOverlapped(lpOverlapped).Buffer[0],
     Length(PExtOverlapped(lpOverlapped).Buffer),
     lpOverlapped,
-    @ReadCompletionRoutine) and
-    not PExtOverlapped(lpOverlapped).ServerThread.Terminated
+    @ReadCompletionRoutine)
   then
-    PExtOverlapped(lpOverlapped).ServerThread.Terminate;
+    SafeCloseHandle(PExtOverlapped(lpOverlapped).PipeHandle^);
 end;
 
 procedure TLSPExecuteServerThread.RunServer;
@@ -239,8 +230,6 @@ var
   StdInReadPipe, StdInWriteTmpPipe, StdInWritePipe: THandle;
   dBytesWrite: DWORD;
   ExtOverlapped, ExtOverlappedError: TExtOverlapped;
-  WaitHandles: TArray<THandle>;
-  WaitResult: DWORD;
   PCurrentDir: PChar;
 begin
   FExitcode := 0;
@@ -248,7 +237,6 @@ begin
   SecurityAttributes.nLength := sizeof(SECURITY_ATTRIBUTES);
   SecurityAttributes.lpSecurityDescriptor := nil;
   SecurityAttributes.bInheritHandle := True;
-
 
   StdInWritePipe := 0;
   ReadHandle := 0;
@@ -314,9 +302,8 @@ begin
     CloseHandle(FProcessInformation.hThread); // Not needed
 
     // Asynchronous read from stdout
-    ExtOverlapped.ServerThread := Self;
     SetLength(ExtOverlapped.Buffer, BUFFER_SIZE);
-    ExtOverlapped.PipeHandle := ReadHandle;
+    ExtOverlapped.PipeHandle := @ReadHandle;
     ExtOverlapped.OnReadProc := ExtractAndSendResponceMessages;
     ZeroMemory(@ExtOverlapped.Overlapped, SizeOf(TOverlapped));
 
@@ -330,9 +317,8 @@ begin
       RaiseLastOSError;
 
     // Asynchronous read from stderror
-    ExtOverlappedError.ServerThread := Self;
     SetLength(ExtOverlappedError.Buffer, ERROR_BUFFER_SIZE);
-    ExtOverlappedError.PipeHandle := ErrorReadHandle;
+    ExtOverlappedError.PipeHandle := @ErrorReadHandle;
     ExtOverlappedError.OnReadProc := ProcessErrorOutput;
     ZeroMemory(@ExtOverlappedError.Overlapped, SizeOf(TOverlapped));
 
@@ -348,17 +334,10 @@ begin
     if Assigned(FOnConnected) then
       FOnConnected(Self);
 
-    // Setup wait handles
-    WaitHandles := [FProcessInformation.hProcess, FWriteEvent.Handle];
-
     repeat
       // Alertable wait so the that read completion interrupts the wait
-      WaitResult :=
-        WaitForMultipleObjectsEx(2, @WaitHandles[0], False, INFINITE, True);
-
-      case WaitResult of
-        WAIT_OBJECT_0: Break;
-        WAIT_OBJECT_0 + 1:
+      case WaitForSingleObjectEx(FWriteEvent.Handle, INFINITE, True) of
+        WAIT_OBJECT_0:
           begin
             // Write data to the server
             FWriteLock.Enter;
@@ -368,7 +347,7 @@ begin
                 if not WriteFile(StdInWritePipe, FWriteBytes[0],
                   Length(FWriteBytes), dBytesWrite, nil)
                 then
-                  Break;
+                  Terminate;
                 FWriteBytes := [];
               end;
             finally
@@ -377,9 +356,9 @@ begin
           end;
           WAIT_IO_COMPLETION: Continue;
         else
-          RaiseLastOSError(WaitResult);
+          RaiseLastOSError;
       end;
-    until Terminated;
+    until Terminated or ((ErrorReadHandle = 0) and (ReadHandle = 0));
 
     // Close all remaining handles
     GetExitCodeProcess(FProcessInformation.hProcess,FExitCode);
@@ -553,6 +532,8 @@ begin
 end;
 
 procedure TLSPExecuteServerThread.TerminatedSet;
+const
+  FORCED_TERMINATION = $FE;
 begin
   if FTransportType <> ttStdIO then
   begin
@@ -563,7 +544,7 @@ begin
   end;
 
   // Kill the server when Terminate is called
-  if Started and not Finished then
+  if Started and not Finished and (FProcessInformation.hProcess <> 0) then
     TerminateProcess(FProcessInformation.hProcess, FORCED_TERMINATION);
   inherited;
 end;
