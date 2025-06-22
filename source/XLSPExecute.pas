@@ -241,6 +241,7 @@ var
   ExtOverlapped, ExtOverlappedError: TExtOverlapped;
   WaitHandles: TArray<THandle>;
   WaitResult: DWORD;
+  PCurrentDir: PChar;
 begin
   FExitcode := 0;
 
@@ -291,10 +292,16 @@ begin
       hStdError :=  ErrorWriteHandle;
     end;
 
+    // CurrentDir cannot point to an empty string;
+    if FDir = '' then
+      PCurrentDir := nil
+    else
+      PCurrentDir := PChar(FDir);
+
     // Run LSP server
     try
       if not CreateProcess(nil, PChar(FCommandline), nil, nil, True,
-        NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, nil, PChar(FDir),
+        NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, nil, PCurrentDir,
         StartupInfo, FProcessInformation)
       then
         RaiseLastOSError;
