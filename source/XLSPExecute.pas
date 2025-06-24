@@ -34,7 +34,6 @@ type
   private
     FCommandline: String;
     FDir: String;
-    FEnvironmentVars: TStringList;
     FExitCode: LongWord;
     FHost: string;
     FJson: string;
@@ -67,7 +66,6 @@ type
     constructor Create(const ACommandline, ADir: String);
     destructor Destroy; override;
     procedure SendToServer(Bytes: TBytes);
-    procedure SetEnvironmentVars(const Values: string);
     property Host: string read FHost write FHost;
     property Port: Integer read FPort write FPort;
     property TransportType: TTransportType read FTransportType
@@ -82,7 +80,6 @@ type
   end;
 
 const
-  FORCED_TERMINATION = $FE;
   AcceptTimeout = 5000;
 
 implementation
@@ -90,30 +87,6 @@ implementation
 uses
   System.StrUtils,
   XLSPUtils;
-
-// From JclStrings
-function StringsToMultiSz(var Dest: PChar; const Source: TStrings): PChar;
-var
-  I, TotalLength: Integer;
-  P: PChar;
-begin
-  Assert((Source <> nil) and (Source.Count > 0), 'StringsToMultiSz');
-  TotalLength := 1;
-  for I := 0 to Source.Count - 1 do
-  begin
-    if Source[I] <> '' then
-      Inc(TotalLength, StrLen(PChar(Source[I])) + 1);
-  end;
-  GetMem(Dest, TotalLength * SizeOf(Char));
-  P := Dest;
-  for I := 0 to Source.Count - 1 do
-  begin
-    P := StrECopy(P, PChar(Source[I]));
-    Inc(P);
-  end;
-  P^ := #0;
-  Result := Dest;
-end;
 
 procedure TLSPExecuteServerThread.ConnectionAccepted(
   const ASyncResult: IAsyncResult);
@@ -141,8 +114,6 @@ begin
     FDir := Path;
   end;
   Priority := tpNormal;
-  FEnvironmentVars := TStringList.Create;
-  FEnvironmentVars.Sorted := True;
   FWriteLock.Initialize;
   FAcceptEvent := TSimpleEvent.Create(nil, False, False, '');
   FWriteEvent := TSimpleEvent.Create(nil, False, False, '');
@@ -154,7 +125,6 @@ destructor TLSPExecuteServerThread.Destroy;
 begin
   // The inherited destructor calls Termainate and waits
   inherited;
-  FEnvironmentVars.Free;
   FWriteLock.Destroy;
   FAcceptEvent.Free;
   FWriteEvent.Free;
@@ -214,10 +184,9 @@ type
   PExtOverlapped = ^TExtOverlapped;
   TExtOverlapped = record
     Overlapped: TOverlapped;
-    ServerThread: TLSPExecuteServerThread;
     Buffer: TBytes;
     OnReadProc: TOnReadProc;
-    PipeHandle: THandle;
+    PipeHandle: PHandle;
   end;
 
 // Completion routine for ReadFileEx
@@ -227,13 +196,7 @@ begin
   // Check for errors or pipe closure
   if dwErrorCode <> 0 then
   begin
-    if not PExtOverlapped(lpOverlapped).ServerThread.Terminated then
-    begin
-      OutputDebugString(PChar(
-        Format('ReadCompletionRoutine called with dwErrorCode: %d',
-        [dwErrorCode])));
-      PExtOverlapped(lpOverlapped).ServerThread.Terminate;
-    end;
+    SafeCloseHandle(PExtOverlapped(lpOverlapped).PipeHandle^);
     Exit;
   end;
 
@@ -246,14 +209,13 @@ begin
 
   // Issue another read
   if not ReadFileEx(
-    PExtOverlapped(lpOverlapped).PipeHandle,
+    PExtOverlapped(lpOverlapped).PipeHandle^,
     @PExtOverlapped(lpOverlapped).Buffer[0],
     Length(PExtOverlapped(lpOverlapped).Buffer),
     lpOverlapped,
-    @ReadCompletionRoutine) and
-    not PExtOverlapped(lpOverlapped).ServerThread.Terminated
+    @ReadCompletionRoutine)
   then
-    PExtOverlapped(lpOverlapped).ServerThread.Terminate;
+    SafeCloseHandle(PExtOverlapped(lpOverlapped).PipeHandle^);
 end;
 
 procedure TLSPExecuteServerThread.RunServer;
@@ -267,17 +229,14 @@ var
   ErrorReadHandle, ErrorWriteHandle: THandle;
   StdInReadPipe, StdInWriteTmpPipe, StdInWritePipe: THandle;
   dBytesWrite: DWORD;
-  EnvironmentData: PChar;
   ExtOverlapped, ExtOverlappedError: TExtOverlapped;
-  WaitHandles: TArray<THandle>;
-  WaitResult: DWORD;
+  PCurrentDir: PChar;
 begin
   FExitcode := 0;
 
   SecurityAttributes.nLength := sizeof(SECURITY_ATTRIBUTES);
   SecurityAttributes.lpSecurityDescriptor := nil;
   SecurityAttributes.bInheritHandle := True;
-
 
   StdInWritePipe := 0;
   ReadHandle := 0;
@@ -309,27 +268,28 @@ begin
     raise;
   end;
 
+  ZeroMemory(@StartupInfo, SizeOf(TStartupInfo));
+  with StartupInfo do
+  begin
+    cb := SizeOf(StartupInfo);
+    dwFlags := STARTF_USESHOWWINDOW or STARTF_USESTDHANDLES;
+    wShowWindow := SW_HIDE;
+    hStdInput := StdInReadPipe;
+    hStdOutput := WriteHandle;
+    hStdError :=  ErrorWriteHandle;
+  end;
+
+  // CurrentDir cannot point to an empty string;
+  if FDir = '' then
+    PCurrentDir := nil
+  else
+    PCurrentDir := PChar(FDir);
+
   try
-    ZeroMemory(@StartupInfo, SizeOf(TStartupInfo));
-    with StartupInfo do
-    begin
-      cb := SizeOf(StartupInfo);
-      dwFlags := STARTF_USESHOWWINDOW or STARTF_USESTDHANDLES;
-      wShowWindow := SW_HIDE;
-      hStdInput := StdInReadPipe;
-      hStdOutput := WriteHandle;
-      hStdError :=  ErrorWriteHandle;
-    end;
-
-    if FEnvironmentVars.Count = 0 then
-      EnvironmentData := nil
-    else
-      StringsToMultiSz(EnvironmentData, FEnvironmentVars);
-
-    // Run LSP server
     try
+      // Run LSP server
       if not CreateProcess(nil, PChar(FCommandline), nil, nil, True,
-        NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, EnvironmentData, PChar(FDir),
+        NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, nil, PCurrentDir,
         StartupInfo, FProcessInformation)
       then
         RaiseLastOSError;
@@ -342,9 +302,8 @@ begin
     CloseHandle(FProcessInformation.hThread); // Not needed
 
     // Asynchronous read from stdout
-    ExtOverlapped.ServerThread := Self;
     SetLength(ExtOverlapped.Buffer, BUFFER_SIZE);
-    ExtOverlapped.PipeHandle := ReadHandle;
+    ExtOverlapped.PipeHandle := @ReadHandle;
     ExtOverlapped.OnReadProc := ExtractAndSendResponceMessages;
     ZeroMemory(@ExtOverlapped.Overlapped, SizeOf(TOverlapped));
 
@@ -358,9 +317,8 @@ begin
       RaiseLastOSError;
 
     // Asynchronous read from stderror
-    ExtOverlappedError.ServerThread := Self;
     SetLength(ExtOverlappedError.Buffer, ERROR_BUFFER_SIZE);
-    ExtOverlappedError.PipeHandle := ErrorReadHandle;
+    ExtOverlappedError.PipeHandle := @ErrorReadHandle;
     ExtOverlappedError.OnReadProc := ProcessErrorOutput;
     ZeroMemory(@ExtOverlappedError.Overlapped, SizeOf(TOverlapped));
 
@@ -376,27 +334,20 @@ begin
     if Assigned(FOnConnected) then
       FOnConnected(Self);
 
-    // Setup wait handles
-    WaitHandles := [FProcessInformation.hProcess, FWriteEvent.Handle];
-
     repeat
       // Alertable wait so the that read completion interrupts the wait
-      WaitResult :=
-        WaitForMultipleObjectsEx(2, @WaitHandles[0], False, INFINITE, True);
-
-      case WaitResult of
-        WAIT_OBJECT_0: Break;
-        WAIT_OBJECT_0 + 1:
+      case WaitForSingleObjectEx(FWriteEvent.Handle, INFINITE, True) of
+        WAIT_OBJECT_0:
           begin
             // Write data to the server
             FWriteLock.Enter;
             try
-              if Length(FWriteBytes) > 0 then
+              if not Terminated and (Length(FWriteBytes) > 0) then
               begin
                 if not WriteFile(StdInWritePipe, FWriteBytes[0],
                   Length(FWriteBytes), dBytesWrite, nil)
                 then
-                  Break;
+                  Terminate;
                 FWriteBytes := [];
               end;
             finally
@@ -405,9 +356,9 @@ begin
           end;
           WAIT_IO_COMPLETION: Continue;
         else
-          RaiseLastOSError(WaitResult);
+          RaiseLastOSError;
       end;
-    until Terminated;
+    until Terminated or ((ErrorReadHandle = 0) and (ReadHandle = 0));
 
     // Close all remaining handles
     GetExitCodeProcess(FProcessInformation.hProcess,FExitCode);
@@ -458,7 +409,6 @@ procedure TLSPExecuteServerThread.RunServerThroughSocket;
 var
   StartupInfo: TStartupInfo;
   WaitHandles: TArray<THandle>;
-  EnvironmentData: PChar;
   WaitResult: DWORD;
 begin
   FExitcode := 0;
@@ -475,11 +425,6 @@ begin
   UniqueString(FCommandLine);
   UniqueString(FDir);
 
-  if FEnvironmentVars.Count = 0 then
-    EnvironmentData := nil
-  else
-    StringsToMultiSz(EnvironmentData, FEnvironmentVars);
-
   // Create the socket
   FSocket := TSocket.Create(TSocketType.TCP);
 
@@ -494,7 +439,7 @@ begin
 
   // Run LSP server
   if not CreateProcess(nil, PChar(FCommandline), nil, nil, True,
-    NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, EnvironmentData, PChar(FDir),
+    NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, nil, PChar(FDir),
     StartupInfo, FProcessInformation) then
   begin
     raise Exception.Create('Could not run language server!');
@@ -586,13 +531,9 @@ begin
   FWriteEvent.SetEvent;
 end;
 
-procedure TLSPExecuteServerThread.SetEnvironmentVars(const Values: string);
-begin
-  FEnvironmentVars.Delimiter := ';';
-  FEnvironmentVars.DelimitedText := Values;
-end;
-
 procedure TLSPExecuteServerThread.TerminatedSet;
+const
+  FORCED_TERMINATION = $FE;
 begin
   if FTransportType <> ttStdIO then
   begin
@@ -603,7 +544,7 @@ begin
   end;
 
   // Kill the server when Terminate is called
-  if Started and not Finished then
+  if Started and not Finished and (FProcessInformation.hProcess <> 0) then
     TerminateProcess(FProcessInformation.hProcess, FORCED_TERMINATION);
   inherited;
 end;
