@@ -468,6 +468,8 @@ begin
     GetExitCodeProcess(FProcessInformation.hProcess,FExitCode);
     SafeCloseHandle(FProcessInformation.hProcess);
   finally
+    if EnvironmentData <> nil then
+      FreeMem(EnvironmentData);
     SafeCloseHandle(StdInWritePipe);
     SafeCloseHandle(ReadHandle);
     SafeCloseHandle(ErrorReadHandle);
@@ -619,6 +621,9 @@ begin
   // Close all remaining handles
   GetExitCodeProcess(FProcessInformation.hProcess,FExitCode);
   CloseHandle(FProcessInformation.hProcess);
+
+  if EnvironmentData <> nil then
+    FreeMem(EnvironmentData);
 
   if Assigned(FOnExit) then
     FOnExit(Self, FExitCode);
