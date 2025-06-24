@@ -66,8 +66,8 @@ type
   public
     constructor Create(const ACommandline, ADir: String);
     destructor Destroy; override;
+    procedure AddEnvironmentVars(const values: string);
     procedure SendToServer(Bytes: TBytes);
-    procedure SetEnvironmentVars(const Values: string);
     property Host: string read FHost write FHost;
     property Port: Integer read FPort write FPort;
     property TransportType: TTransportType read FTransportType
@@ -90,28 +90,90 @@ uses
   System.StrUtils,
   XLSPUtils;
 
-// From JclStrings
-function StringsToMultiSz(var Dest: PChar; const Source: TStrings): PChar;
+function GetAllEnvVars(const Vars: TStrings): Integer;
 var
-  I, TotalLength: Integer;
-  P: PChar;
+  PEnvVars: PChar;    // pointer to start of environment block
+  PEnvEntry: PChar;   // pointer to an env string in block
 begin
-  Assert((Source <> nil) and (Source.Count > 0), 'StringsToMultiSz');
-  TotalLength := 1;
-  for I := 0 to Source.Count - 1 do
+  // Clear the list
+  if Assigned(Vars) then
+    Vars.Clear;
+
+  // Get reference to environment block for this process
+  PEnvVars := GetEnvironmentStrings;
+  if PEnvVars <> nil then
   begin
-    if Source[I] <> '' then
-      Inc(TotalLength, StrLen(PChar(Source[I])) + 1);
+    // We have a block: extract strings from it
+    // Env strings are #0 separated and list ends with #0#0
+    PEnvEntry := PEnvVars;
+    try
+      while PEnvEntry^ <> #0 do
+      begin
+        if Assigned(Vars) then
+          Vars.Add(PEnvEntry);
+        Inc(PEnvEntry, StrLen(PEnvEntry) + 1);
+      end;
+
+      // Calculate length of block
+      Result := (PEnvEntry - PEnvVars) + 1;
+    finally
+      // Dispose of the memory block
+      FreeEnvironmentStrings(PEnvVars);
+    end;
+  end
+  else
+    // No block => zero length
+    Result := 0;
+end;
+
+function CreateEnvBlock(const NewEnv: TStrings;
+  const IncludeCurrent: Boolean;
+  var Buffer: Pointer): Integer;
+var
+  EnvVars: TStringList; // env vars in new block
+  Idx: Integer;         // loops thru env vars
+  PBuf: PChar;          // start env var entry in block
+begin
+  // String list for new environment vars
+  EnvVars := TStringList.Create;
+  try
+    // include current block if required
+    if IncludeCurrent then
+      GetAllEnvVars(EnvVars);
+
+    // store given environment vars in list
+    if Assigned(NewEnv) then
+      EnvVars.AddStrings(NewEnv);
+
+    // Calculate size of new environment block
+    Result := 0;
+    for Idx := 0 to Pred(EnvVars.Count) do
+      Inc(Result, Length(EnvVars[Idx]) + 1);
+
+    Inc(Result);
+    Buffer := StrAlloc(Result);
+    ZeroMemory(Buffer, Result * SizeOf(Char));
+
+    // Create block
+    if (Buffer <> nil) then
+    begin
+      // new environment blocks are always sorted
+      EnvVars.Sorted := True;
+
+      // do the copying
+      PBuf := Buffer;
+      for Idx := 0 to Pred(EnvVars.Count) do
+      begin
+        StrPCopy(PBuf, EnvVars[Idx]);
+        Inc(PBuf, Length(EnvVars[Idx]) + 1);
+      end;
+
+      // terminate block with additional #0
+      PBuf^ := #0;
+    end;
+  finally
+    EnvVars.Free;
   end;
-  GetMem(Dest, TotalLength * SizeOf(Char));
-  P := Dest;
-  for I := 0 to Source.Count - 1 do
-  begin
-    P := StrECopy(P, PChar(Source[I]));
-    Inc(P);
-  end;
-  P^ := #0;
-  Result := Dest;
 end;
 
 procedure TLSPExecuteServerThread.ConnectionAccepted(
@@ -247,6 +309,13 @@ begin
     SafeCloseHandle(PExtOverlapped(lpOverlapped).PipeHandle^);
 end;
 
+procedure TLSPExecuteServerThread.AddEnvironmentVars(const values: string);
+begin
+  if values = '' then Exit;
+  FEnvironmentVars.Delimiter := ';';
+  FEnvironmentVars.DelimitedText := Values;
+end;
+
 procedure TLSPExecuteServerThread.RunServer;
 const
   BUFFER_SIZE = 65536;
@@ -258,7 +327,7 @@ var
   ErrorReadHandle, ErrorWriteHandle: THandle;
   StdInReadPipe, StdInWriteTmpPipe, StdInWritePipe: THandle;
   dBytesWrite: DWORD;
-  EnvironmentData: PChar;
+  EnvironmentData: Pointer;
   ExtOverlapped, ExtOverlappedError: TExtOverlapped;
   PCurrentDir: PChar;
 begin
@@ -308,11 +377,11 @@ begin
     hStdOutput := WriteHandle;
     hStdError :=  ErrorWriteHandle;
   end;
-  
+
   if FEnvironmentVars.Count = 0 then
     EnvironmentData := nil
   else
-    StringsToMultiSz(EnvironmentData, FEnvironmentVars);
+    CreateEnvBlock(FEnvironmentVars,True,EnvironmentData);
 
   // CurrentDir cannot point to an empty string;
   if FDir = '' then
@@ -324,7 +393,7 @@ begin
     try
       // Run LSP server
       if not CreateProcess(nil, PChar(FCommandline), nil, nil, True,
-        NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, EnvironmentData, PCurrentDir,
+        NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW or CREATE_UNICODE_ENVIRONMENT, EnvironmentData, PCurrentDir,
         StartupInfo, FProcessInformation)
       then
         RaiseLastOSError;
@@ -444,7 +513,7 @@ procedure TLSPExecuteServerThread.RunServerThroughSocket;
 var
   StartupInfo: TStartupInfo;
   WaitHandles: TArray<THandle>;
-  EnvironmentData: PChar;
+  EnvironmentData: Pointer;
   WaitResult: DWORD;
 begin
   FExitcode := 0;
@@ -464,7 +533,7 @@ begin
   if FEnvironmentVars.Count = 0 then
     EnvironmentData := nil
   else
-    StringsToMultiSz(EnvironmentData, FEnvironmentVars);
+    CreateEnvBlock(FEnvironmentVars,True,EnvironmentData);
 
   // Create the socket
   FSocket := TSocket.Create(TSocketType.TCP);
@@ -480,7 +549,7 @@ begin
 
   // Run LSP server
   if not CreateProcess(nil, PChar(FCommandline), nil, nil, True,
-    NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, EnvironmentData, PChar(FDir),
+    NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW or CREATE_UNICODE_ENVIRONMENT, EnvironmentData, PChar(FDir),
     StartupInfo, FProcessInformation) then
   begin
     raise Exception.Create('Could not run language server!');
@@ -570,12 +639,6 @@ begin
     FWriteLock.Leave;
   end;
   FWriteEvent.SetEvent;
-end;
-
-procedure TLSPExecuteServerThread.SetEnvironmentVars(const Values: string);
-begin
-  FEnvironmentVars.Delimiter := ';';
-  FEnvironmentVars.DelimitedText := Values;
 end;
 
 procedure TLSPExecuteServerThread.TerminatedSet;

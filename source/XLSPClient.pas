@@ -1822,7 +1822,7 @@ begin
 
   // Set environment variables for the server process.
   // Some language servers may require this to work properly.
-  FServerThread.SetEnvironmentVars(AEnvList);
+  FServerThread.AddEnvironmentVars(AEnvList);
   FServerThread.TransportType := ATransportType;
   FServerThread.Host := AHost;
   FServerThread.Port := APort;
