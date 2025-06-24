@@ -1820,7 +1820,7 @@ begin
 // Create the server thread and start it
   FServerThread := TLSPExecuteServerThread.Create(ACommandline, ADir);
 
-  // Set environment variables for the current process and the child process
+  // Set environment variables for the server process.
   // Some language servers may require this to work properly.
   FServerThread.SetEnvironmentVars(AEnvList);
   FServerThread.TransportType := ATransportType;
