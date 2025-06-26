@@ -235,10 +235,8 @@ type
     procedure OnWriteToServer(Sender: TObject; var s: RawByteString);
     function ProcessServerMessage(const LJson: ISuperObject): Boolean;
     procedure RegisterPartialResultToken(const lspKind: TLSPKind; const token: string);
-    procedure RunServer(const ACommandline, ADir: String; const AEnvList: string =
-        ''; const AHost: string = ''; const APort: Integer = 0; const
-        AUseSocketAsServer: Boolean = False; const AUseSocketAsClient: Boolean =
-        False);
+    procedure RunServer(const ACommandline, ADir: String; const AEnvList: string = ''; const AHost: string = ''; const
+        APort: Integer = 0; const AUseSocket: Boolean = False);
     function GetRunTimeInSeconds: Double;
     function GetSyncKind: Integer;
     function IncludeText(const lspKind: TLSPKind; const filename: string; const includeDefault: Boolean): Boolean;
@@ -478,13 +476,6 @@ begin
   w := 'Content-Length: ' + IntToStr(Length(ws)) + Char(13) + Char(10) + Char(13) + Char(10);
   ws := UTF8Encode(w) + ws;
   JSONString := JSONString + ws;
-  if Assigned(FServerThread) then
-  begin
-    FServerThread.SendToServer(JSONString);
-    if FLogToFile and LogCommunication and (JSONString <> '') then
-      SaveToLogFile('Write to server:' + #13#10 + string(JSONString));
-    JSONString := '';
-  end;
 end;
 
 procedure TLSPClient.AddToTempOutputString(const s: string);
@@ -1916,21 +1907,15 @@ begin
   FPartialTokens.Add(token + '=' + IntToStr(n));
 end;
 
-procedure TLSPClient.RunServer(const ACommandline, ADir: String; const
-    AEnvList: string = ''; const AHost: string = ''; const APort: Integer = 0;
-    const AUseSocketAsServer: Boolean = False; const AUseSocketAsClient:
-    Boolean = False);
+procedure TLSPClient.RunServer(const ACommandline, ADir: String; const AEnvList: string = ''; const AHost: string = '';
+    const APort: Integer = 0; const AUseSocket: Boolean = False);
 begin
-  FServerThread := TLSPExecuteServerThread.Create(ACommandline, ADir);
-  if AUseSocketAsServer then
-    FServerThread.TransportType := TTransportType.ttSocketServer
-  else if AUseSocketAsClient then
-    FServerThread.TransportType := TTransportType.ttSocketClient
-  else
-    FServerThread.TransportType := TTransportType.ttStdIO;
+  FServerThread := TLSPExecuteServerThread.Create(ACommandline, ADir, AEnvList);
+  FServerThread.UseSocket := AUseSocket;
   FServerThread.Host := AHost;
   FServerThread.Port := APort;
   FServerThread.OnReadFromServer := OnReadFromServer;
+  FServerThread.OnWriteToServer := OnWriteToServer;
   FServerThread.OnExit := OnExitServer;
   FServerThread.OnTerminate := OnServerThreadTerminate;
   FServerThread.Start;
