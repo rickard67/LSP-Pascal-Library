@@ -34,6 +34,7 @@ type
   private
     FCommandline: String;
     FDir: String;
+    FEnvironmentVars: TStringList;
     FExitCode: LongWord;
     FHost: string;
     FJson: string;
@@ -65,6 +66,7 @@ type
   public
     constructor Create(const ACommandline, ADir: String);
     destructor Destroy; override;
+    procedure AddEnvironmentVars(const values: string);
     procedure SendToServer(Bytes: TBytes);
     property Host: string read FHost write FHost;
     property Port: Integer read FPort write FPort;
@@ -87,6 +89,92 @@ implementation
 uses
   System.StrUtils,
   XLSPUtils;
+
+function GetAllEnvVars(const Vars: TStrings): Integer;
+var
+  PEnvVars: PChar;    // pointer to start of environment block
+  PEnvEntry: PChar;   // pointer to an env string in block
+begin
+  // Clear the list
+  if Assigned(Vars) then
+    Vars.Clear;
+
+  // Get reference to environment block for this process
+  PEnvVars := GetEnvironmentStrings;
+  if PEnvVars <> nil then
+  begin
+    // We have a block: extract strings from it
+    // Env strings are #0 separated and list ends with #0#0
+    PEnvEntry := PEnvVars;
+    try
+      while PEnvEntry^ <> #0 do
+      begin
+        if Assigned(Vars) then
+          Vars.Add(PEnvEntry);
+        Inc(PEnvEntry, StrLen(PEnvEntry) + 1);
+      end;
+
+      // Calculate length of block
+      Result := (PEnvEntry - PEnvVars) + 1;
+    finally
+      // Dispose of the memory block
+      FreeEnvironmentStrings(PEnvVars);
+    end;
+  end
+  else
+    // No block => zero length
+    Result := 0;
+end;
+
+function CreateEnvBlock(const NewEnv: TStrings;
+  const IncludeCurrent: Boolean;
+  var Buffer: Pointer): Integer;
+var
+  EnvVars: TStringList; // env vars in new block
+  Idx: Integer;         // loops thru env vars
+  PBuf: PChar;          // start env var entry in block
+begin
+  // String list for new environment vars
+  EnvVars := TStringList.Create;
+  try
+    // include current block if required
+    if IncludeCurrent then
+      GetAllEnvVars(EnvVars);
+
+    // store given environment vars in list
+    if Assigned(NewEnv) then
+      EnvVars.AddStrings(NewEnv);
+
+    // Calculate size of new environment block
+    Result := 0;
+    for Idx := 0 to Pred(EnvVars.Count) do
+      Inc(Result, Length(EnvVars[Idx]) + 1);
+
+    Inc(Result);
+    Buffer := StrAlloc(Result);
+    ZeroMemory(Buffer, Result * SizeOf(Char));
+
+    // Create block
+    if (Buffer <> nil) then
+    begin
+      // new environment blocks are always sorted
+      EnvVars.Sorted := True;
+
+      // do the copying
+      PBuf := Buffer;
+      for Idx := 0 to Pred(EnvVars.Count) do
+      begin
+        StrPCopy(PBuf, EnvVars[Idx]);
+        Inc(PBuf, Length(EnvVars[Idx]) + 1);
+      end;
+
+      // terminate block with additional #0
+      PBuf^ := #0;
+    end;
+  finally
+    EnvVars.Free;
+  end;
+end;
 
 procedure TLSPExecuteServerThread.ConnectionAccepted(
   const ASyncResult: IAsyncResult);
@@ -114,6 +202,8 @@ begin
     FDir := Path;
   end;
   Priority := tpNormal;
+  FEnvironmentVars := TStringList.Create;
+  FEnvironmentVars.Sorted := True;
   FWriteLock.Initialize;
   FAcceptEvent := TSimpleEvent.Create(nil, False, False, '');
   FWriteEvent := TSimpleEvent.Create(nil, False, False, '');
@@ -125,6 +215,7 @@ destructor TLSPExecuteServerThread.Destroy;
 begin
   // The inherited destructor calls Termainate and waits
   inherited;
+  FEnvironmentVars.Free;
   FWriteLock.Destroy;
   FAcceptEvent.Free;
   FWriteEvent.Free;
@@ -218,6 +309,13 @@ begin
     SafeCloseHandle(PExtOverlapped(lpOverlapped).PipeHandle^);
 end;
 
+procedure TLSPExecuteServerThread.AddEnvironmentVars(const values: string);
+begin
+  if values = '' then Exit;
+  FEnvironmentVars.Delimiter := ';';
+  FEnvironmentVars.DelimitedText := Values;
+end;
+
 procedure TLSPExecuteServerThread.RunServer;
 const
   BUFFER_SIZE = 65536;
@@ -229,6 +327,7 @@ var
   ErrorReadHandle, ErrorWriteHandle: THandle;
   StdInReadPipe, StdInWriteTmpPipe, StdInWritePipe: THandle;
   dBytesWrite: DWORD;
+  EnvironmentData: Pointer;
   ExtOverlapped, ExtOverlappedError: TExtOverlapped;
   PCurrentDir: PChar;
 begin
@@ -279,6 +378,11 @@ begin
     hStdError :=  ErrorWriteHandle;
   end;
 
+  if FEnvironmentVars.Count = 0 then
+    EnvironmentData := nil
+  else
+    CreateEnvBlock(FEnvironmentVars,True,EnvironmentData);
+
   // CurrentDir cannot point to an empty string;
   if FDir = '' then
     PCurrentDir := nil
@@ -289,7 +393,7 @@ begin
     try
       // Run LSP server
       if not CreateProcess(nil, PChar(FCommandline), nil, nil, True,
-        NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, nil, PCurrentDir,
+        NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW or CREATE_UNICODE_ENVIRONMENT, EnvironmentData, PCurrentDir,
         StartupInfo, FProcessInformation)
       then
         RaiseLastOSError;
@@ -364,6 +468,8 @@ begin
     GetExitCodeProcess(FProcessInformation.hProcess,FExitCode);
     SafeCloseHandle(FProcessInformation.hProcess);
   finally
+    if EnvironmentData <> nil then
+      FreeMem(EnvironmentData);
     SafeCloseHandle(StdInWritePipe);
     SafeCloseHandle(ReadHandle);
     SafeCloseHandle(ErrorReadHandle);
@@ -409,6 +515,7 @@ procedure TLSPExecuteServerThread.RunServerThroughSocket;
 var
   StartupInfo: TStartupInfo;
   WaitHandles: TArray<THandle>;
+  EnvironmentData: Pointer;
   WaitResult: DWORD;
 begin
   FExitcode := 0;
@@ -425,6 +532,11 @@ begin
   UniqueString(FCommandLine);
   UniqueString(FDir);
 
+  if FEnvironmentVars.Count = 0 then
+    EnvironmentData := nil
+  else
+    CreateEnvBlock(FEnvironmentVars,True,EnvironmentData);
+
   // Create the socket
   FSocket := TSocket.Create(TSocketType.TCP);
 
@@ -439,7 +551,7 @@ begin
 
   // Run LSP server
   if not CreateProcess(nil, PChar(FCommandline), nil, nil, True,
-    NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW, nil, PChar(FDir),
+    NORMAL_PRIORITY_CLASS or CREATE_NO_WINDOW or CREATE_UNICODE_ENVIRONMENT, EnvironmentData, PChar(FDir),
     StartupInfo, FProcessInformation) then
   begin
     raise Exception.Create('Could not run language server!');
@@ -509,6 +621,9 @@ begin
   // Close all remaining handles
   GetExitCodeProcess(FProcessInformation.hProcess,FExitCode);
   CloseHandle(FProcessInformation.hProcess);
+
+  if EnvironmentData <> nil then
+    FreeMem(EnvironmentData);
 
   if Assigned(FOnExit) then
     FOnExit(Self, FExitCode);

@@ -263,7 +263,6 @@ type
     procedure DynCapabilitiesNotify(Sender: TObject; const Item: TLSPRegistration; Action: TCollectionNotification);
     function GetServerInfo: TLSPServerInfo;
     function GetServerCapabilities: TLSPServerCapabilities;
-    procedure SetEnvironmentVars(const AEnvList: string);
   public
     constructor Create(Owner: TComponent); override;
     destructor Destroy; override;
@@ -1818,12 +1817,12 @@ end;
 procedure TLSPClient.RunServer(const ACommandline, ADir: string; const AEnvList: string = ''; const AHost: string = '';
     const APort: Integer = 0; const ATransportType: TTransportType = ttStdIO);
 begin
-  // Set environment variables for the current process and the child process
-  // Some language servers may require this to work properly.
-  SetEnvironmentVars(AEnvList);
-
-  // Create the server thread and start it
+// Create the server thread and start it
   FServerThread := TLSPExecuteServerThread.Create(ACommandline, ADir);
+
+  // Set environment variables for the server process.
+  // Some language servers may require this to work properly.
+  FServerThread.AddEnvironmentVars(AEnvList);
   FServerThread.TransportType := ATransportType;
   FServerThread.Host := AHost;
   FServerThread.Port := APort;
@@ -2316,25 +2315,6 @@ procedure TLSPClient.SetDefaultOptions;
 begin
   ClientName := 'Pascal LSP Client';
   ClientVersion := '1.0';
-end;
-
-procedure TLSPClient.SetEnvironmentVars(const AEnvList: string);
-var
-  ls: TStringList;
-  i: Integer;
-begin
-  if AEnvList = '' then Exit;
-
-  // Set environment variables for the current process and childs
-  ls := TStringlist.Create;
-  try
-    ls.Delimiter := ';';
-    ls.DelimitedText := AEnvList;
-    for i := 0 to ls.Count - 1 do
-      SetEnvironmentVariable(PChar(ls.Names[i]), PChar(ls.ValueFromIndex[i]));
-  finally
-    ls.Free;
-  end;
 end;
 
 procedure TLSPClient.SetExitTimeout(const Value: Integer);
