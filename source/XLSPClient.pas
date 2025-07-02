@@ -2176,6 +2176,7 @@ function TLSPClient.SendRequest(const lspKind: TLSPKind;
   const paramJSON: string = ''): Integer;
 const
   RequestFormat = '{"jsonrpc": "2.0","id": %d,"method": %s,"params": %s}';
+  RequestFormatNoParams = '{"jsonrpc": "2.0","id": %d,"method": %s}';
 var
   Request: string;
   RttiType: TRttiType;
@@ -2240,9 +2241,12 @@ begin
   else if Assigned(params) then
     sParams := CreateJSONRequestParam(lspKind, Params)
   else
-    sParams := '{}';
+    sParams := '';
 
-  Request := Format(RequestFormat, [Result, sMethod, sParams]);
+  if sParams <> '' then
+    Request := Format(RequestFormat, [Result, sMethod, sParams])
+  else
+    Request := Format(RequestFormatNoParams, [Result, sMethod]);
 
   if not FInitialized and (lspKind <> lspInitialize) then
     // We shouldn't send anything to the server before it has been initialized.
