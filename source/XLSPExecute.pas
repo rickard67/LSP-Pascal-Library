@@ -259,10 +259,14 @@ begin
     if not SafeCreatePipe(StdInReadPipe, StdInWriteTmpPipe, @SecurityAttributes, 0) then
       RaiseLastOSError;
 
-    if not SafeDuplicateHandle(GetCurrentProcess, StdInWriteTmpPipe, GetCurrentProcess,
-      @StdInWritePipe, 0, False, DUPLICATE_SAME_ACCESS)
-    then
-      RaiseLastOSError;
+    try
+      if not SafeDuplicateHandle(GetCurrentProcess, StdInWriteTmpPipe, GetCurrentProcess,
+        @StdInWritePipe, 0, False, DUPLICATE_SAME_ACCESS)
+      then
+        RaiseLastOSError;
+    finally
+      SafeCloseHandle(StdInWriteTmpPipe);
+    end;
 
     // Create async pipe for reading stdout
     if not CreateAsyncPipe(ReadHandle, WriteHandle, @SecurityAttributes, BUFFER_SIZE) then
@@ -273,7 +277,6 @@ begin
       RaiseLastOSError;
   except
     SafeCloseHandle(StdInReadPipe);
-    SafeCloseHandle(StdInWriteTmpPipe);
     SafeCloseHandle(StdInWritePipe);
     SafeCloseHandle(ReadHandle);
     SafeCloseHandle(WriteHandle);
@@ -365,7 +368,10 @@ begin
                 if not WriteFile(StdInWritePipe, FWriteBytes[0],
                   Length(FWriteBytes), dBytesWrite, nil)
                 then
-                  Terminate;
+                begin
+                  SafeCloseHandle(StdInWritePipe);
+                  RaiseLastOSError;
+                end;
                 FWriteBytes := [];
               end;
             finally
@@ -376,14 +382,16 @@ begin
         else
           RaiseLastOSError;
       end;
-    until Terminated or ((ErrorReadHandle = 0) and (ReadHandle = 0));
+    until (ErrorReadHandle = 0) and (ReadHandle = 0);
 
-    // Close all remaining handles
+    // Wait for the process to terminate so that we get the correct exit code
+    WaitForSingleObject(FProcessInformation.hProcess, INFINITE);
     GetExitCodeProcess(FProcessInformation.hProcess,FExitCode);
-    SafeCloseHandle(FProcessInformation.hProcess);
   finally
     if EnvironmentData <> nil then
       FreeMem(EnvironmentData);
+    // Close process and other handles
+    SafeCloseHandle(FProcessInformation.hProcess);
     SafeCloseHandle(StdInWritePipe);
     SafeCloseHandle(ReadHandle);
     SafeCloseHandle(ErrorReadHandle);

@@ -2042,6 +2042,7 @@ procedure TLSPClient.SendNotification(const lspKind: TLSPKind; const method: str
   const params: TLSPBaseParams; const paramJSON: string);
 const
   NotifyFormat = '{"jsonrpc": "2.0","method": %s,"params": %s}';
+  NotifyFormatNoParams = '{"jsonrpc": "2.0","method": %s}';
 var
   Notification: string;
   sParams: string;
@@ -2068,10 +2069,13 @@ begin
   else if Assigned(params) then
     sParams := params.AsJson
   else
-    sParams := '{}';
+    sParams := '';
 
   // Create notification and insert params
-  Notification := Format(NotifyFormat, [sMethod, sParams]);
+  if sParams = '' then
+    Notification := Format(NotifyFormatNoParams, [sMethod])
+  else
+    Notification := Format(NotifyFormat, [sMethod, sParams]);
 
   if not FInitialized and (lspKind <> lspInitialized) then
     // We shouldn't send anything to the server before it has been initialized.
@@ -2176,6 +2180,7 @@ function TLSPClient.SendRequest(const lspKind: TLSPKind;
   const paramJSON: string = ''): Integer;
 const
   RequestFormat = '{"jsonrpc": "2.0","id": %d,"method": %s,"params": %s}';
+  RequestFormatNoParams = '{"jsonrpc": "2.0","id": %d,"method": %s}';
 var
   Request: string;
   RttiType: TRttiType;
@@ -2240,9 +2245,12 @@ begin
   else if Assigned(params) then
     sParams := CreateJSONRequestParam(lspKind, Params)
   else
-    sParams := '{}';
+    sParams := '';
 
-  Request := Format(RequestFormat, [Result, sMethod, sParams]);
+  if sParams = '' then
+    Request := Format(RequestFormatNoParams, [Result, sMethod])
+  else
+    Request := Format(RequestFormat, [Result, sMethod, sParams]);
 
   if not FInitialized and (lspKind <> lspInitialize) then
     // We shouldn't send anything to the server before it has been initialized.
