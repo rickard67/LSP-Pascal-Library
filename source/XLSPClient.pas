@@ -2130,16 +2130,22 @@ var
 begin
   if FLogFileName = '' then Exit;
 
-  if not FileExists(FLogFileName) then
-    FileStream := TFileStream.Create(FLogFileName, fmCreate)
-  else
-    FileStream := TFileStream.Create(FLogFileName, fmOpenReadWrite);
   try
-    FileStream.Seek(0, soEnd);
-    Bytes := TEncoding.UTF8.GetBytes(SLineBreak + Msg + SLineBreak);
-    FileStream.Write(Bytes, Length(Bytes));
-  finally
-    FileStream.Free;
+    if not FileExists(FLogFileName) then
+      FileStream := TFileStream.Create(FLogFileName, fmCreate)
+    else
+      FileStream := TFileStream.Create(FLogFileName, fmOpenReadWrite);
+    try
+      FileStream.Seek(0, soEnd);
+      Bytes := TEncoding.UTF8.GetBytes(SLineBreak + Msg + SLineBreak);
+      FileStream.Write(Bytes, Length(Bytes));
+    finally
+      FileStream.Free;
+    end;
+  except
+    // A call to this function must not throw an exception.
+    // It could cause functions like SendToServer() to fail
+    // if an exception occur here.
   end;
 end;
 
