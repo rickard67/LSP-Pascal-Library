@@ -244,6 +244,7 @@ var
   EnvironmentData: Pointer;
   ExtOverlapped, ExtOverlappedError: TExtOverlapped;
   PCurrentDir: PChar;
+  LWriteBytes: TBytes;
 begin
   FExitcode := 0;
 
@@ -363,19 +364,20 @@ begin
             // Write data to the server
             FWriteLock.Enter;
             try
-              if not Terminated and (Length(FWriteBytes) > 0) then
-              begin
-                if not WriteFile(StdInWritePipe, FWriteBytes[0],
-                  Length(FWriteBytes), dBytesWrite, nil)
-                then
-                begin
-                  SafeCloseHandle(StdInWritePipe);
-                  RaiseLastOSError;
-                end;
-                FWriteBytes := [];
-              end;
+              LWriteBytes := FWriteBytes;
+              SetLength(FWriteBytes, 0);
             finally
               FWriteLock.Leave;
+            end;
+            if not Terminated and (Length(LWriteBytes) > 0) then
+            begin
+              if not WriteFile(StdInWritePipe, LWriteBytes[0],
+                Length(LWriteBytes), dBytesWrite, nil)
+              then
+              begin
+                SafeCloseHandle(StdInWritePipe);
+                RaiseLastOSError;
+              end;
             end;
           end;
           WAIT_IO_COMPLETION: Continue;
@@ -439,6 +441,7 @@ var
   WaitHandles: TArray<THandle>;
   EnvironmentData: Pointer;
   WaitResult: DWORD;
+  LWriteBytes: TBytes;
 begin
   FExitcode := 0;
 
@@ -522,16 +525,17 @@ begin
           // Write data to the server
           FWriteLock.Enter;
           try
-            if Length(FWriteBytes) > 0 then
-            try
-              // send synchronously
-              FLspSocket.Send(FWriteBytes)
-            except
-              Break;
-            end;
-            FWriteBytes := [];
+            LWriteBytes := FWriteBytes;
+            SetLength(FWriteBytes, 0);
           finally
             FWriteLock.Leave;
+          end;
+          if Length(LWriteBytes) > 0 then
+          try
+            // send synchronously
+            FLspSocket.Send(LWriteBytes);
+          except
+            Break;
           end;
         end;
         WAIT_IO_COMPLETION: Continue;
