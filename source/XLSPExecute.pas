@@ -104,17 +104,11 @@ const
   ContentHeaderRE = '^(?:[^\r\n]+\r\n)*' +
                     'Content-Length:\s*(?P<length>\d+)\r\n' +
                     '(?:[^\r\n]+\r\n)*\r\n';
-var
-  Path: array[0..MAX_PATH] of WideChar;
 begin
   inherited Create(True);
-  ExpandEnvironmentStringsW(PWideChar(ACommandline), @Path, MAX_PATH);
-  FCommandline := Path;
+  FCommandline := ExpandEnvVars(ACommandline);
   if ADir <> '' then
-  begin
-    ExpandEnvironmentStringsW(PWideChar(ADir), @Path, MAX_PATH);
-    FDir := Path;
-  end;
+    FDir := ExpandEnvVars(ADir);
   Priority := tpNormal;
   FEnvironmentVars := TStringList.Create;
   FEnvironmentVars.Sorted := True;

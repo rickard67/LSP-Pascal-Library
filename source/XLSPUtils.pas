@@ -147,6 +147,9 @@ type
 function CompiledRegEx(Expr: string; Options: TRegExOptions = [roNotEmpty];
   UCP: Boolean = True): TRegEx;
 
+// Expands environment variables
+function ExpandEnvVars(const Str: string): string;
+
 // Get the environment block of the current process
 function GetAllEnvVars(const Vars: TStrings): Integer;
 
@@ -221,6 +224,21 @@ begin
   if UCP then
     Result.AddRawOptions(PCRE_UCP);
   Result.Study([preJIT]);
+end;
+
+function ExpandEnvVars(const Str: string): string;
+var
+  Len: Integer;
+begin
+  Result := Str;
+  if Str = '' then Exit;
+
+  Len := ExpandEnvironmentStrings(PChar(Str), nil, 0);
+  if Len > 0 then
+  begin
+    SetLength(Result, Len - 1); // Len includes the null terminator
+    ExpandEnvironmentStrings(PChar(Str), PChar(Result), Len);
+  end
 end;
 
 function GetAllEnvVars(const Vars: TStrings): Integer;
