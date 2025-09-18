@@ -1283,7 +1283,7 @@ begin
         raise XLSPException.CreateRes(@rsInitializeFailure);
 
       // Send Initialized notification to the server
-      SendNotification(lspInitialized);
+      SendNotification(lspInitialized, '', nil, '{}');
 
       // OnInitialized event
       if Assigned(FOnInitialized) then
