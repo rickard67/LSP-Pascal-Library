@@ -1561,10 +1561,18 @@ type
   end;
 
   TJsonTextEditDictConverter =
+    {$IF CompilerVersion < 37}
     class(TJsonTypedStringDictionaryConverter<TArray<TLSPAnnotatedTextEdit>>);
+    {$ELSE}
+    class(TJsonStringDictionaryConverter<TArray<TLSPAnnotatedTextEdit>>);
+    {$ENDIF}
 
   TJsonChangeAnnotationDictConverter =
+    {$IF CompilerVersion < 37}
     class(TJsonTypedStringDictionaryConverter<TLSPChangeAnnotation>);
+    {$ELSE}
+    class(TJsonStringDictionaryConverter<TLSPChangeAnnotation>);
+    {$ENDIF}
 
   TLSPWorkspaceEdit = class(TLSPBaseResult)
   public

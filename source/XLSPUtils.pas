@@ -121,10 +121,12 @@ type
   end;
 
   // Dictionary converter
+  {$IF CompilerVersion < 37}
   TJsonTypedStringDictionaryConverter<V> = class(TJsonStringDictionaryConverter<V>)
     function ReadJson(const AReader: TJsonReader; ATypeInf: PTypeInfo; const AExistingValue: TValue;
       const ASerializer: TJsonSerializer): TValue; override;
   end;
+  {$ENDIF}
 
   // BugFix for Delphi 11 or earlier
   {$IF CompilerVersion < 36}
@@ -402,7 +404,7 @@ begin
   Result := True;
 end;
 
-{$REGION 'Utility functions'}
+{$ENDREGION 'Utility functions'}
 
 
 {$REGION 'Helper classes'}
@@ -619,6 +621,7 @@ begin
   end;
 end;
 
+{$IF CompilerVersion < 37}
 type
   // Fix for https://embt.atlassian.net/servicedesk/customer/portal/1/RSS-3591
   TJSONObjectWriterHelper = class helper for TJSONObjectWriter
@@ -638,6 +641,7 @@ begin
         Result := nil;
     end;
 end;
+{$ENDIF}
 
 {$ENDREGION 'Helper classes'}
 
@@ -814,7 +818,11 @@ begin
     AWriter.WriteRawValue(AValue.AsString)
   else if AWriter is TJsonObjectWriter then
   begin
+    {$IF CompilerVersion < 37}
     JsonPair :=  TJsonObjectWriter(AWriter).FixedGetContainer as TJsonPair;
+    {$ELSE}
+    JsonPair :=  TJsonObjectWriter(AWriter).Container as TJsonPair;
+    {$ENDIF}
     AWriter.WriteNull;  // to pop the JSONpair
     JsonPair.JsonValue := TJSONValue.ParseJSONValue(AValue.AsString);
   end
@@ -852,6 +860,7 @@ end;
 
 { TTypedJsonStringDictionaryConverter<V> }
 
+{$IF CompilerVersion < 37}
 function TJsonTypedStringDictionaryConverter<V>.ReadJson(
   const AReader: TJsonReader; ATypeInf: PTypeInfo; const AExistingValue: TValue;
   const ASerializer: TJsonSerializer): TValue;
@@ -878,6 +887,7 @@ begin
     raise;
   end;
 end;
+{$ENDIF}
 
 { TJsonIntegerConverter }
 
