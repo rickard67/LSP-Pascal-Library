@@ -14,13 +14,14 @@ uses
   Winapi.Windows,
   System.TypInfo,
   System.SysUtils,
+  System.Classes,
   System.Rtti,
   System.JSON,
   System.JSON.Readers,
   System.JSON.Writers,
   System.JSON.Serializers,
   System.JSON.Converters,
-  System.RegularExpressions, System.Classes;
+  System.RegularExpressions;
 
 type
 
@@ -99,7 +100,6 @@ type
   end;
 
   // Handles raw Json fields
-  // Limitation: ReadJson requires a TJsonObjectReader
   TJsonRawConverter = class(TJsonConverter)
   public
     function CanConvert(ATypeInfo: PTypeInfo): Boolean; override;
@@ -129,6 +129,7 @@ type
   {$ENDIF}
 
   // BugFix for Delphi 11 or earlier
+  // This horrendus bug only occurs when using TJsonObjectReader
   {$IF CompilerVersion < 36}
   TJsonIntegerConverter  = class(TJsonConverter)
   public
@@ -554,13 +555,14 @@ end;
 
 procedure TJSONObjectHelper.FromJSON(const AJson: string);
 var
- JsonObj: TJSONObject;
+  JsonSerializer: TJsonSerializer;
+  JsonVariantConverter: TJsonVariantConverter;
 begin
-  // We have go via TJSONObject because otherwise the
-  // TJsonRawConverter will fail.
-  JsonObj := TSmartPtr.Make(TJSONValue.ParseJSONValue(
-    TEncoding.UTF8.GetBytes(AJson), 0) as TJSONObject)();
-  FromJSON(JsonObj);
+  if AJson = '' then Exit;
+  JsonSerializer := TSmartPtr.Make(TJsonSerializer.Create)();
+  JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
+  JsonSerializer.Converters.Add(JsonVariantConverter);
+  JsonSerializer.Populate(AJson, Self);
 end;
 
 procedure TJSONObjectHelper.FromJSON(AJsonObject: TJSONObject);
@@ -649,17 +651,18 @@ end;
 
 class function TSerializer.Deserialize<T>(const AJson: string): T;
 var
-  JsonValue: TJSONValue;
+  Serializer: TJsonSerializer;
+  JsonVariantConverter: TJsonVariantConverter;
 begin
   if AJson = '' then Exit(Default(T));
 
-  JsonValue := TSmartPtr.Make(TJSONValue.ParseJSONValue(
-    TEncoding.UTF8.GetBytes(AJson), 0))();
-  Result := TSerializer.Deserialize<T>(JsonValue);
+  Serializer := TSmartPtr.Make(TJsonSerializer.Create)();
+  JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
+  Serializer.Converters.Add(JsonVariantConverter);
+  Result := Serializer.Deserialize<T>(AJson);
 end;
 
-class function TSerializer.Deserialize<T>(AJsonValue:
-  TJSONValue): T;
+class function TSerializer.Deserialize<T>(AJsonValue: TJSONValue): T;
 var
   Serializer: TJsonSerializer;
   Reader: TJsonObjectReader;
@@ -705,13 +708,15 @@ end;
 
 class procedure TSerializer.Populate<T>(const AJson: string; var AValue: T);
 var
-  JsonValue: TJSONValue;
+  Serializer: TJsonSerializer;
+  JsonVariantConverter: TJsonVariantConverter;
 begin
   if AJson = '' then Exit;
 
-  JsonValue := TSmartPtr.Make(TJSONValue.ParseJSONValue(
-    TEncoding.UTF8.GetBytes(AJson), 0))();
-  TSerializer.Populate<T>(JsonValue, AValue);
+  Serializer := TSmartPtr.Make(TJsonSerializer.Create)();
+  JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
+  Serializer.Converters.Add(JsonVariantConverter);
+  Serializer.Populate<T>(AJson, AValue);
 end;
 
 class function TSerializer.Serialize<T>(const AValue: T): string;
@@ -787,6 +792,50 @@ end;
 
 { TJsonRawConverter }
 
+
+type
+  TStringReaderHelper = class helper for TStringReader
+    function Data: string;
+  end;
+
+function TStringReaderHelper.Data: string;
+begin
+  with Self do Result := FData;
+end;
+
+function GetCharIndex(AText: string; ALine, ALinePos: Integer;
+  StartIndex: Integer = 1; StartLine: Integer = 1;
+  StartLinePos: Integer = 1): Integer;
+var
+  I: Integer;
+  CurrentLine: Integer;
+  CurrentPos: Integer;
+begin
+  Result := 0; // Default to 0 if not found
+  if AText = '' then
+    Exit;
+
+  CurrentLine := StartLine;
+  CurrentPos := StartLinePos;
+  for I := StartIndex to Length(AText) do
+  begin
+    if (CurrentLine = ALine) and (CurrentPos = ALinePos) then
+    begin
+      Result := I;
+      Break;
+    end;
+
+    // Handle line breaks
+    if AText[I] = #10 then
+    begin
+      Inc(CurrentLine);
+      CurrentPos := 1;
+    end
+    else
+      Inc(CurrentPos);
+  end;
+end;
+
 function TJsonRawConverter.CanConvert(ATypeInfo: PTypeInfo): Boolean;
 begin
   Result := ATypeInfo = TypeInfo(string);
@@ -795,16 +844,58 @@ end;
 function TJsonRawConverter.ReadJson(const AReader: TJsonReader;
   ATypeInfo: PTypeInfo; const AExistingValue: TValue;
   const ASerializer: TJsonSerializer): TValue;
+var
+  Data: string;
+  StartLine, StartPos, EndLine, EndPos: Integer;
+  StartIndex, EndIndex: Integer;
 begin
-  // Only works with TJsonObjectReader
-  if not (AReader is TJsonObjectReader) then
-    raise EJsonWriterException.Create('TJsonRawConverter requires a TJsonObjectReader');
-  Assert(TJsonObjectReader(AReader).Current <> nil);
-  if TJsonObjectReader(AReader).Current is TJSONNull then
+  if AReader.TokenType = TJsonToken.Null then
     Result := ''
-  else
+  else if AReader is TJsonObjectReader then
+  begin
+    Assert(TJsonObjectReader(AReader).Current <> nil);
     Result := TJsonObjectReader(AReader).Current.ToJSON;
-  AReader.Skip;
+    AReader.Skip;
+  end
+  else if (AReader is TJsonTextReader) and (TJsonTextReader(AReader).Reader is TStringReader) then
+  begin
+    Data := TStringReader(TJsonTextReader(AReader).Reader).Data;
+    StartLine := TJsonTextReader(AReader).LineNumber;
+    StartPos := TJsonTextReader(AReader).LinePosition;
+    StartIndex := GetCharIndex(Data, StartLine, StartPos);
+    if StartIndex = 0 then
+    begin
+      Result := '';
+      Exit;
+    end;
+
+    AReader.Skip;
+    EndLine := TJsonTextReader(AReader).LineNumber;
+    EndPos := TJsonTextReader(AReader).LinePosition;
+    EndIndex := GetCharIndex(Data, EndLine, EndPos, StartIndex, StartLine, StartPos);
+    if (EndIndex = 0) or (EndIndex > Length(Data)) then
+      EndIndex := Length(Data) + 1;
+
+    Dec(StartIndex);
+    if Data[StartIndex] = '"' then
+      // string value
+      while (StartIndex > 1) do
+      begin
+        Dec(StartIndex);
+        if (Data[StartIndex] = '"')  and
+          ((StartIndex = 1) or (Data[StartIndex -1] <> '\'))
+        then
+          Break;
+      end
+    else
+      while (StartIndex > 1) and
+        not CharInSet(Data[StartIndex - 1], [#9, #10, '[', '{', ':', ',', ' '])
+      do
+        Dec(StartIndex);
+    Result := Copy(Data, StartIndex, EndIndex - StartIndex);
+  end
+  else
+    raise EJsonWriterException.Create('Unsupported reader in TJsonRawConverter');
 end;
 
 procedure TJsonRawConverter.WriteJson(const AWriter: TJsonWriter;
