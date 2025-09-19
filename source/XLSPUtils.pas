@@ -17,6 +17,7 @@ uses
   System.Classes,
   System.Rtti,
   System.JSON,
+  System.JSON.Types,
   System.JSON.Readers,
   System.JSON.Writers,
   System.JSON.Serializers,
@@ -29,14 +30,15 @@ type
   // Format procuces formatted (human readaable) output
   // IgnoreNil ignores object fields with nil value
   // IgnoreEmpty ignores other properties with empty values
-  TSerializeOption = (Format, IgnoreNil, IgnoreEmpty);
+  TSerializeOption = (IgnoreNil, IgnoreEmpty);
   TSerializeOptions = set of TSerializeOption;
 
 {$REGION 'Helper classes'}
   // (De)Serialization of Delphi objects and their members
   TJSONObjectHelper = class helper for TObject
   public
-    function AsJSON(Options: TSerializeOptions = []): string;
+    function AsJSON(Options: TSerializeOptions = [];
+      Formatting: TJsonFormatting = TJsonFormatting.None): string;
     function AsJSONObject(Options: TSerializeOptions = []): TJSONObject;
     procedure FromJSON(const AJson: string); overload;
     procedure FromJSON(AJsonObject: TJSONObject); overload;
@@ -52,7 +54,8 @@ type
   // Ensures proper handling of Raw Json fields
   // TODO: Add TSerializeOptions to Serialize
   TSerializer = class
-    class function Serialize<T>(const AValue: T): string; overload;
+    class function Serialize<T>(const AValue: T; Formatting:
+    TJsonFormatting = TJsonFormatting.None): string; overload;
     class function Deserialize<T>(const AJson: string): T; overload;
     class function Deserialize<T>(AJsonValue: TJSONValue): T; overload;
     class procedure Populate<T>(const AJson: string; var AValue: T); overload;
@@ -185,7 +188,6 @@ implementation
 
 uses
   System.Variants,
-  System.JSON.Types,
   System.Generics.Collections,
   System.RegularExpressionsAPI,
   System.RegularExpressionsCore;
@@ -412,19 +414,19 @@ end;
 
 { TJSONObjectHelper }
 
-function TJSONObjectHelper.AsJSON(Options: TSerializeOptions): string;
+function TJSONObjectHelper.AsJSON(Options: TSerializeOptions = []; Formatting:
+    TJsonFormatting = TJsonFormatting.None): string;
 var
   JsonSerializer: TJsonSerializer;
   JsonVariantConverter: TJsonVariantConverter;
   JsonObj: TJSONObject;
 begin
-  if Options - [TSerializeOption.Format] = [] then
+  if Options = [] then
   begin
     JsonSerializer := TSmartPtr.Make(TJsonSerializer.Create)();
     JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
     JsonSerializer.Converters.Add(JsonVariantConverter);
-    if TSerializeOption.Format in Options then
-      JsonSerializer.Formatting := TJsonFormatting.Indented;
+    JsonSerializer.Formatting := Formatting;
     Result := JsonSerializer.Serialize(Self);
   end
   else
@@ -432,7 +434,7 @@ begin
     // We have go via TJSONObject if we want to Ignore properties
     // based on their value.
     JsonObj := TSmartPtr.Make(Self.AsJSONObject(Options))();
-    if TSerializeOption.Format in Options then
+    if Formatting = TJsonFormatting.Indented then
       Result := JsonObj.Format
     else
       Result := JsonObj.ToJSON;
@@ -546,7 +548,7 @@ begin
   Result := JsonObjectWriter.JSON as TJSONObject;
 
   // Finally process Ignore options
-  if Options - [TSerializeOption.Format] <> [] then
+  if Options <> [] then
   begin
      RttiType := RttiContext.GetType(Self.ClassType);
      Process(Self, RttiType.GetFields, Result);
@@ -719,7 +721,8 @@ begin
   Serializer.Populate<T>(AJson, AValue);
 end;
 
-class function TSerializer.Serialize<T>(const AValue: T): string;
+class function TSerializer.Serialize<T>(const AValue: T; Formatting:
+    TJsonFormatting = TJsonFormatting.None): string;
 var
   Serializer: TJsonSerializer;
   JsonVariantConverter: TJsonVariantConverter;
@@ -727,6 +730,7 @@ begin
   JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
   Serializer := TSmartPtr.Make(TJsonSerializer.Create)();
   Serializer.Converters.Add(JsonVariantConverter);
+  Serializer.Formatting := Formatting;
   Result := Serializer.Serialize(AValue);
 end;
 
