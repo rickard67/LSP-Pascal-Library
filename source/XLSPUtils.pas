@@ -26,24 +26,19 @@ uses
 
 type
 
-{$SCOPEDENUMS ON}
-  // Format procuces formatted (human readaable) output
-  // IgnoreNil ignores object fields with nil value
-  // IgnoreEmpty ignores other properties with empty values
-  TSerializeOption = (IgnoreNil, IgnoreEmpty);
-  TSerializeOptions = set of TSerializeOption;
-
 {$REGION 'Helper classes'}
   // (De)Serialization of Delphi objects and their members
   TJSONObjectHelper = class helper for TObject
   public
-    function AsJSON(Options: TSerializeOptions = [];
+    function AsJSON(IgnoreDefaultAndEmpty: Boolean = False;
       Formatting: TJsonFormatting = TJsonFormatting.None): string;
-    function AsJSONObject(Options: TSerializeOptions = []): TJSONObject;
+    function AsJSONObject(IgnoreDefaultAndEmpty: Boolean = False): TJSONObject;
     procedure FromJSON(const AJson: string); overload;
     procedure FromJSON(AJsonObject: TJSONObject); overload;
     procedure MemberFromJsonValue(const MemberName: string; Value: TJSONValue);
-    function MemberAsJson(const MemberName: string; Options: TSerializeOptions = []): string;
+    function MemberAsJson(const MemberName: string;
+      IgnoreDefaultAndEmpty: Boolean = False;
+      Formatting: TJsonFormatting = TJsonFormatting.None): string;
   end;
 
 {$ENDREGION 'Helper classes'}
@@ -52,10 +47,10 @@ type
   // Wraps TJsonSerializer for ease of use.
   // Includes the handling of Variant fileds
   // Ensures proper handling of Raw Json fields
-  // TODO: Add TSerializeOptions to Serialize
+  // TODO: Add IgnoreDefaultAndEmpty to Serialize
   TSerializer = class
     class function Serialize<T>(const AValue: T; Formatting:
-    TJsonFormatting = TJsonFormatting.None): string; overload;
+      TJsonFormatting = TJsonFormatting.None): string; overload;
     class function Deserialize<T>(const AJson: string): T; overload;
     class function Deserialize<T>(AJsonValue: TJSONValue): T; overload;
     class procedure Populate<T>(const AJson: string; var AValue: T); overload;
@@ -414,35 +409,48 @@ end;
 
 { TJSONObjectHelper }
 
-function TJSONObjectHelper.AsJSON(Options: TSerializeOptions = []; Formatting:
-    TJsonFormatting = TJsonFormatting.None): string;
+function TJSONObjectHelper.AsJSON(IgnoreDefaultAndEmpty: Boolean = False;
+    Formatting: TJsonFormatting = TJsonFormatting.None): string;
 var
   JsonSerializer: TJsonSerializer;
   JsonVariantConverter: TJsonVariantConverter;
+  {$IF CompilerVersion < 37}
   JsonObj: TJSONObject;
+  {$ENDIF}
 begin
-  if Options = [] then
+  {$IF CompilerVersion < 37}
+  if not IgnoreDefaultAndEmpty then
   begin
+  {$ENDIF}
     JsonSerializer := TSmartPtr.Make(TJsonSerializer.Create)();
     JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
     JsonSerializer.Converters.Add(JsonVariantConverter);
     JsonSerializer.Formatting := Formatting;
+  {$IF CompilerVersion >= 37}
+    if IgnoreDefaultAndEmpty then
+      JsonSerializer.ValueSerialization := TJsonValueSerialization.ExcludeAll
+    else
+      JsonSerializer.ValueSerialization := TJsonValueSerialization.ExcludeSpecial;
+  {$ENDIF}
     Result := JsonSerializer.Serialize(Self);
+  {$IF CompilerVersion < 37}
   end
   else
   begin
-    // We have go via TJSONObject if we want to Ignore properties
-    // based on their value.
-    JsonObj := TSmartPtr.Make(Self.AsJSONObject(Options))();
-    if Formatting = TJsonFormatting.Indented then
-      Result := JsonObj.Format
+    // We have go via TJSONObject if IgnoreDefaultAndEmpty is True
+    JsonObj := TSmartPtr.Make(Self.AsJSONObject(IgnoreDefaultAndEmpty))();
+    if Formatting = TJsonFormatting.None then
+      Result := JsonObj.ToJSON
     else
-      Result := JsonObj.ToJSON;
+      Result := JsonObj.Format;
   end;
+  {$ENDIF}
 end;
 
-function TJSONObjectHelper.AsJSONObject(Options: TSerializeOptions): TJSONObject;
+function TJSONObjectHelper.AsJSONObject(IgnoreDefaultAndEmpty: Boolean =
+    False): TJSONObject;
 
+  {$IF CompilerVersion < 37}
   procedure Process(Instance: Pointer; const Fields: TArray<TRttiField>;
     JsonObj: TJSONObject);
   var
@@ -502,7 +510,7 @@ function TJSONObjectHelper.AsJSONObject(Options: TSerializeOptions): TJSONObject
         tkClass:
           begin
             Value := RttiField.GetValue(Instance);
-            if (TSerializeOption.IgnoreNil in Options) and Value.IsEmpty then
+            if Value.IsEmpty then
             begin
               // OK if RemovePair returns nil
               JsonObj.RemovePair(RttiField.Name).Free;
@@ -518,13 +526,12 @@ function TJSONObjectHelper.AsJSONObject(Options: TSerializeOptions): TJSONObject
             end;
           end;
         tkUString:
-          if TSerializeOption.IgnoreEmpty in Options then
           begin
             Value := RttiField.GetValue(Instance);
             if Value.AsString = '' then
               JsonObj.RemovePair(RttiField.Name).Free;
           end;
-      else if TSerializeOption.IgnoreEmpty in Options then
+      else
         begin
           Value := RttiField.GetValue(Instance);
           if Value.IsEmpty then
@@ -533,9 +540,12 @@ function TJSONObjectHelper.AsJSONObject(Options: TSerializeOptions): TJSONObject
       end;
     end;
   end;
+  {$ENDIF}
 
 var
+  {$IF CompilerVersion < 37}
   RttiType: TRttiType;
+  {$ENDIF}
   JsonSerializer: TJsonSerializer;
   JsonObjectWriter: TJsonObjectWriter;
   JsonVariantConverter: TJsonVariantConverter;
@@ -544,15 +554,23 @@ begin
   JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
   JsonSerializer.Converters.Add(JsonVariantConverter);
   JsonObjectWriter := TSmartPtr.Make(TJsonObjectWriter.Create(False))();
+  {$IF CompilerVersion >= 37}
+  if IgnoreDefaultAndEmpty then
+    JsonSerializer.ValueSerialization := TJsonValueSerialization.ExcludeAll
+  else
+    JsonSerializer.ValueSerialization := TJsonValueSerialization.ExcludeSpecial;
+  {$ENDIF}
   JsonSerializer.Serialize(JsonObjectWriter, Self);
   Result := JsonObjectWriter.JSON as TJSONObject;
 
+  {$IF CompilerVersion < 37}
   // Finally process Ignore options
-  if Options <> [] then
+  if IgnoreDefaultAndEmpty then
   begin
      RttiType := RttiContext.GetType(Self.ClassType);
      Process(Self, RttiType.GetFields, Result);
   end;
+  {$ENDIF}
 end;
 
 procedure TJSONObjectHelper.FromJSON(const AJson: string);
@@ -607,17 +625,23 @@ begin
   end;
 end;
 
-function TJSONObjectHelper.MemberAsJson(const MemberName: string; Options:
-    TSerializeOptions = []): string;
+function TJSONObjectHelper.MemberAsJson(const MemberName: string;
+    IgnoreDefaultAndEmpty: Boolean = False; Formatting: TJsonFormatting =
+    TJsonFormatting.None): string;
 var
   JsonObj: TJSONObject;
   JsonValue: TJSONValue;
 begin
-  JsonObj := Self.AsJSONObject(Options);
+  JsonObj := Self.AsJSONObject(IgnoreDefaultAndEmpty);
   try
     JsonValue := JsonObj.Values[MemberName];
     if Assigned(JsonValue) then
-      Result := JsonValue.ToJSON
+    begin
+      if Formatting = TJsonFormatting.None then
+        Result := JsonValue.ToJSON
+      else
+        Result := JsonValue.Format;
+    end
     else
       Result := 'null';
   finally
