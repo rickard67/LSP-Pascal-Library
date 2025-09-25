@@ -1924,6 +1924,9 @@ begin
         end;
       end;
     end;
+    lspDidChangeWorkspaceFolders:
+      Result := Assigned(ServerCapabilities) and
+                ServerCapabilities.workspace.workspaceFolders.changeNotifications;
     lspWorkspaceSymbol:
       Result := Assigned(ServerCapabilities.workspaceSymbolProvider);
     lspWorkspaceExecuteCommand:
