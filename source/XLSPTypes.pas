@@ -4809,6 +4809,7 @@ type
     // also be triggered when file content changes.
     const Automatic = 2;
   end;
+  TLSPDocumentSymbols = TArray<TLSPDocumentSymbol>;
 
   TLSPCodeActionContext = record
     // An array of diagnostics known on the client side overlapping the range
