@@ -14,33 +14,31 @@ uses
   Winapi.Windows,
   System.TypInfo,
   System.SysUtils,
+  System.Classes,
   System.Rtti,
   System.JSON,
+  System.JSON.Types,
   System.JSON.Readers,
   System.JSON.Writers,
   System.JSON.Serializers,
   System.JSON.Converters,
-  System.RegularExpressions, System.Classes;
+  System.RegularExpressions;
 
 type
-
-{$SCOPEDENUMS ON}
-  // Format procuces formatted (human readaable) output
-  // IgnoreNil ignores object fields with nil value
-  // IgnoreEmpty ignores other properties with empty values
-  TSerializeOption = (Format, IgnoreNil, IgnoreEmpty);
-  TSerializeOptions = set of TSerializeOption;
 
 {$REGION 'Helper classes'}
   // (De)Serialization of Delphi objects and their members
   TJSONObjectHelper = class helper for TObject
   public
-    function AsJSON(Options: TSerializeOptions = []): string;
-    function AsJSONObject(Options: TSerializeOptions = []): TJSONObject;
+    function AsJSON(IgnoreDefaultAndEmpty: Boolean = False;
+      Formatting: TJsonFormatting = TJsonFormatting.None): string;
+    function AsJSONObject(IgnoreDefaultAndEmpty: Boolean = False): TJSONObject;
     procedure FromJSON(const AJson: string); overload;
     procedure FromJSON(AJsonObject: TJSONObject); overload;
     procedure MemberFromJsonValue(const MemberName: string; Value: TJSONValue);
-    function MemberAsJson(const MemberName: string; Options: TSerializeOptions = []): string;
+    function MemberAsJson(const MemberName: string;
+      IgnoreDefaultAndEmpty: Boolean = False;
+      Formatting: TJsonFormatting = TJsonFormatting.None): string;
   end;
 
 {$ENDREGION 'Helper classes'}
@@ -49,9 +47,10 @@ type
   // Wraps TJsonSerializer for ease of use.
   // Includes the handling of Variant fileds
   // Ensures proper handling of Raw Json fields
-  // TODO: Add TSerializeOptions to Serialize
+  // TODO: Add IgnoreDefaultAndEmpty to Serialize
   TSerializer = class
-    class function Serialize<T>(const AValue: T): string; overload;
+    class function Serialize<T>(const AValue: T; Formatting:
+      TJsonFormatting = TJsonFormatting.None): string; overload;
     class function Deserialize<T>(const AJson: string): T; overload;
     class function Deserialize<T>(AJsonValue: TJSONValue): T; overload;
     class procedure Populate<T>(const AJson: string; var AValue: T); overload;
@@ -99,7 +98,6 @@ type
   end;
 
   // Handles raw Json fields
-  // Limitation: ReadJson requires a TJsonObjectReader
   TJsonRawConverter = class(TJsonConverter)
   public
     function CanConvert(ATypeInfo: PTypeInfo): Boolean; override;
@@ -121,12 +119,15 @@ type
   end;
 
   // Dictionary converter
+  {$IF CompilerVersion < 37}
   TJsonTypedStringDictionaryConverter<V> = class(TJsonStringDictionaryConverter<V>)
     function ReadJson(const AReader: TJsonReader; ATypeInf: PTypeInfo; const AExistingValue: TValue;
       const ASerializer: TJsonSerializer): TValue; override;
   end;
+  {$ENDIF}
 
   // BugFix for Delphi 11 or earlier
+  // This horrendus bug only occurs when using TJsonObjectReader
   {$IF CompilerVersion < 36}
   TJsonIntegerConverter  = class(TJsonConverter)
   public
@@ -182,7 +183,6 @@ implementation
 
 uses
   System.Variants,
-  System.JSON.Types,
   System.Generics.Collections,
   System.RegularExpressionsAPI,
   System.RegularExpressionsCore;
@@ -402,42 +402,55 @@ begin
   Result := True;
 end;
 
-{$REGION 'Utility functions'}
+{$ENDREGION 'Utility functions'}
 
 
 {$REGION 'Helper classes'}
 
 { TJSONObjectHelper }
 
-function TJSONObjectHelper.AsJSON(Options: TSerializeOptions): string;
+function TJSONObjectHelper.AsJSON(IgnoreDefaultAndEmpty: Boolean = False;
+    Formatting: TJsonFormatting = TJsonFormatting.None): string;
 var
   JsonSerializer: TJsonSerializer;
   JsonVariantConverter: TJsonVariantConverter;
+  {$IF CompilerVersion < 37}
   JsonObj: TJSONObject;
+  {$ENDIF}
 begin
-  if Options - [TSerializeOption.Format] = [] then
+  {$IF CompilerVersion < 37}
+  if not IgnoreDefaultAndEmpty then
   begin
+  {$ENDIF}
     JsonSerializer := TSmartPtr.Make(TJsonSerializer.Create)();
     JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
     JsonSerializer.Converters.Add(JsonVariantConverter);
-    if TSerializeOption.Format in Options then
-      JsonSerializer.Formatting := TJsonFormatting.Indented;
+    JsonSerializer.Formatting := Formatting;
+  {$IF CompilerVersion >= 37}
+    if IgnoreDefaultAndEmpty then
+      JsonSerializer.ValueSerialization := TJsonValueSerialization.ExcludeAll
+    else
+      JsonSerializer.ValueSerialization := TJsonValueSerialization.ExcludeSpecial;
+  {$ENDIF}
     Result := JsonSerializer.Serialize(Self);
+  {$IF CompilerVersion < 37}
   end
   else
   begin
-    // We have go via TJSONObject if we want to Ignore properties
-    // based on their value.
-    JsonObj := TSmartPtr.Make(Self.AsJSONObject(Options))();
-    if TSerializeOption.Format in Options then
-      Result := JsonObj.Format
+    // We have go via TJSONObject if IgnoreDefaultAndEmpty is True
+    JsonObj := TSmartPtr.Make(Self.AsJSONObject(IgnoreDefaultAndEmpty))();
+    if Formatting = TJsonFormatting.None then
+      Result := JsonObj.ToJSON
     else
-      Result := JsonObj.ToJSON;
+      Result := JsonObj.Format;
   end;
+  {$ENDIF}
 end;
 
-function TJSONObjectHelper.AsJSONObject(Options: TSerializeOptions): TJSONObject;
+function TJSONObjectHelper.AsJSONObject(IgnoreDefaultAndEmpty: Boolean =
+    False): TJSONObject;
 
+  {$IF CompilerVersion < 37}
   procedure Process(Instance: Pointer; const Fields: TArray<TRttiField>;
     JsonObj: TJSONObject);
   var
@@ -497,7 +510,7 @@ function TJSONObjectHelper.AsJSONObject(Options: TSerializeOptions): TJSONObject
         tkClass:
           begin
             Value := RttiField.GetValue(Instance);
-            if (TSerializeOption.IgnoreNil in Options) and Value.IsEmpty then
+            if Value.IsEmpty then
             begin
               // OK if RemovePair returns nil
               JsonObj.RemovePair(RttiField.Name).Free;
@@ -513,13 +526,12 @@ function TJSONObjectHelper.AsJSONObject(Options: TSerializeOptions): TJSONObject
             end;
           end;
         tkUString:
-          if TSerializeOption.IgnoreEmpty in Options then
           begin
             Value := RttiField.GetValue(Instance);
             if Value.AsString = '' then
               JsonObj.RemovePair(RttiField.Name).Free;
           end;
-      else if TSerializeOption.IgnoreEmpty in Options then
+      else
         begin
           Value := RttiField.GetValue(Instance);
           if Value.IsEmpty then
@@ -528,9 +540,12 @@ function TJSONObjectHelper.AsJSONObject(Options: TSerializeOptions): TJSONObject
       end;
     end;
   end;
+  {$ENDIF}
 
 var
+  {$IF CompilerVersion < 37}
   RttiType: TRttiType;
+  {$ENDIF}
   JsonSerializer: TJsonSerializer;
   JsonObjectWriter: TJsonObjectWriter;
   JsonVariantConverter: TJsonVariantConverter;
@@ -539,26 +554,35 @@ begin
   JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
   JsonSerializer.Converters.Add(JsonVariantConverter);
   JsonObjectWriter := TSmartPtr.Make(TJsonObjectWriter.Create(False))();
+  {$IF CompilerVersion >= 37}
+  if IgnoreDefaultAndEmpty then
+    JsonSerializer.ValueSerialization := TJsonValueSerialization.ExcludeAll
+  else
+    JsonSerializer.ValueSerialization := TJsonValueSerialization.ExcludeSpecial;
+  {$ENDIF}
   JsonSerializer.Serialize(JsonObjectWriter, Self);
   Result := JsonObjectWriter.JSON as TJSONObject;
 
+  {$IF CompilerVersion < 37}
   // Finally process Ignore options
-  if Options - [TSerializeOption.Format] <> [] then
+  if IgnoreDefaultAndEmpty then
   begin
      RttiType := RttiContext.GetType(Self.ClassType);
      Process(Self, RttiType.GetFields, Result);
   end;
+  {$ENDIF}
 end;
 
 procedure TJSONObjectHelper.FromJSON(const AJson: string);
 var
- JsonObj: TJSONObject;
+  JsonSerializer: TJsonSerializer;
+  JsonVariantConverter: TJsonVariantConverter;
 begin
-  // We have go via TJSONObject because otherwise the
-  // TJsonRawConverter will fail.
-  JsonObj := TSmartPtr.Make(TJSONValue.ParseJSONValue(
-    TEncoding.UTF8.GetBytes(AJson), 0) as TJSONObject)();
-  FromJSON(JsonObj);
+  if AJson = '' then Exit;
+  JsonSerializer := TSmartPtr.Make(TJsonSerializer.Create)();
+  JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
+  JsonSerializer.Converters.Add(JsonVariantConverter);
+  JsonSerializer.Populate(AJson, Self);
 end;
 
 procedure TJSONObjectHelper.FromJSON(AJsonObject: TJSONObject);
@@ -601,17 +625,23 @@ begin
   end;
 end;
 
-function TJSONObjectHelper.MemberAsJson(const MemberName: string; Options:
-    TSerializeOptions = []): string;
+function TJSONObjectHelper.MemberAsJson(const MemberName: string;
+    IgnoreDefaultAndEmpty: Boolean = False; Formatting: TJsonFormatting =
+    TJsonFormatting.None): string;
 var
   JsonObj: TJSONObject;
   JsonValue: TJSONValue;
 begin
-  JsonObj := Self.AsJSONObject(Options);
+  JsonObj := Self.AsJSONObject(IgnoreDefaultAndEmpty);
   try
     JsonValue := JsonObj.Values[MemberName];
     if Assigned(JsonValue) then
-      Result := JsonValue.ToJSON
+    begin
+      if Formatting = TJsonFormatting.None then
+        Result := JsonValue.ToJSON
+      else
+        Result := JsonValue.Format;
+    end
     else
       Result := 'null';
   finally
@@ -619,6 +649,7 @@ begin
   end;
 end;
 
+{$IF CompilerVersion < 37}
 type
   // Fix for https://embt.atlassian.net/servicedesk/customer/portal/1/RSS-3591
   TJSONObjectWriterHelper = class helper for TJSONObjectWriter
@@ -638,6 +669,7 @@ begin
         Result := nil;
     end;
 end;
+{$ENDIF}
 
 {$ENDREGION 'Helper classes'}
 
@@ -645,17 +677,18 @@ end;
 
 class function TSerializer.Deserialize<T>(const AJson: string): T;
 var
-  JsonValue: TJSONValue;
+  Serializer: TJsonSerializer;
+  JsonVariantConverter: TJsonVariantConverter;
 begin
   if AJson = '' then Exit(Default(T));
 
-  JsonValue := TSmartPtr.Make(TJSONValue.ParseJSONValue(
-    TEncoding.UTF8.GetBytes(AJson), 0))();
-  Result := TSerializer.Deserialize<T>(JsonValue);
+  Serializer := TSmartPtr.Make(TJsonSerializer.Create)();
+  JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
+  Serializer.Converters.Add(JsonVariantConverter);
+  Result := Serializer.Deserialize<T>(AJson);
 end;
 
-class function TSerializer.Deserialize<T>(AJsonValue:
-  TJSONValue): T;
+class function TSerializer.Deserialize<T>(AJsonValue: TJSONValue): T;
 var
   Serializer: TJsonSerializer;
   Reader: TJsonObjectReader;
@@ -701,16 +734,19 @@ end;
 
 class procedure TSerializer.Populate<T>(const AJson: string; var AValue: T);
 var
-  JsonValue: TJSONValue;
+  Serializer: TJsonSerializer;
+  JsonVariantConverter: TJsonVariantConverter;
 begin
   if AJson = '' then Exit;
 
-  JsonValue := TSmartPtr.Make(TJSONValue.ParseJSONValue(
-    TEncoding.UTF8.GetBytes(AJson), 0))();
-  TSerializer.Populate<T>(JsonValue, AValue);
+  Serializer := TSmartPtr.Make(TJsonSerializer.Create)();
+  JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
+  Serializer.Converters.Add(JsonVariantConverter);
+  Serializer.Populate<T>(AJson, AValue);
 end;
 
-class function TSerializer.Serialize<T>(const AValue: T): string;
+class function TSerializer.Serialize<T>(const AValue: T; Formatting:
+    TJsonFormatting = TJsonFormatting.None): string;
 var
   Serializer: TJsonSerializer;
   JsonVariantConverter: TJsonVariantConverter;
@@ -718,6 +754,7 @@ begin
   JsonVariantConverter := TSmartPtr.Make(TJsonVariantConverter.Create)();
   Serializer := TSmartPtr.Make(TJsonSerializer.Create)();
   Serializer.Converters.Add(JsonVariantConverter);
+  Serializer.Formatting := Formatting;
   Result := Serializer.Serialize(AValue);
 end;
 
@@ -783,6 +820,50 @@ end;
 
 { TJsonRawConverter }
 
+
+type
+  TStringReaderHelper = class helper for TStringReader
+    function Data: string;
+  end;
+
+function TStringReaderHelper.Data: string;
+begin
+  with Self do Result := FData;
+end;
+
+function GetCharIndex(AText: string; ALine, ALinePos: Integer;
+  StartIndex: Integer = 1; StartLine: Integer = 1;
+  StartLinePos: Integer = 1): Integer;
+var
+  I: Integer;
+  CurrentLine: Integer;
+  CurrentPos: Integer;
+begin
+  Result := 0; // Default to 0 if not found
+  if AText = '' then
+    Exit;
+
+  CurrentLine := StartLine;
+  CurrentPos := StartLinePos;
+  for I := StartIndex to Length(AText) do
+  begin
+    if (CurrentLine = ALine) and (CurrentPos = ALinePos) then
+    begin
+      Result := I;
+      Break;
+    end;
+
+    // Handle line breaks
+    if AText[I] = #10 then
+    begin
+      Inc(CurrentLine);
+      CurrentPos := 1;
+    end
+    else
+      Inc(CurrentPos);
+  end;
+end;
+
 function TJsonRawConverter.CanConvert(ATypeInfo: PTypeInfo): Boolean;
 begin
   Result := ATypeInfo = TypeInfo(string);
@@ -791,16 +872,58 @@ end;
 function TJsonRawConverter.ReadJson(const AReader: TJsonReader;
   ATypeInfo: PTypeInfo; const AExistingValue: TValue;
   const ASerializer: TJsonSerializer): TValue;
+var
+  Data: string;
+  StartLine, StartPos, EndLine, EndPos: Integer;
+  StartIndex, EndIndex: Integer;
 begin
-  // Only works with TJsonObjectReader
-  if not (AReader is TJsonObjectReader) then
-    raise EJsonWriterException.Create('TJsonRawConverter requires a TJsonObjectReader');
-  Assert(TJsonObjectReader(AReader).Current <> nil);
-  if TJsonObjectReader(AReader).Current is TJSONNull then
+  if AReader.TokenType = TJsonToken.Null then
     Result := ''
-  else
+  else if AReader is TJsonObjectReader then
+  begin
+    Assert(TJsonObjectReader(AReader).Current <> nil);
     Result := TJsonObjectReader(AReader).Current.ToJSON;
-  AReader.Skip;
+    AReader.Skip;
+  end
+  else if (AReader is TJsonTextReader) and (TJsonTextReader(AReader).Reader is TStringReader) then
+  begin
+    Data := TStringReader(TJsonTextReader(AReader).Reader).Data;
+    StartLine := TJsonTextReader(AReader).LineNumber;
+    StartPos := TJsonTextReader(AReader).LinePosition;
+    StartIndex := GetCharIndex(Data, StartLine, StartPos);
+    if StartIndex = 0 then
+    begin
+      Result := '';
+      Exit;
+    end;
+
+    AReader.Skip;
+    EndLine := TJsonTextReader(AReader).LineNumber;
+    EndPos := TJsonTextReader(AReader).LinePosition;
+    EndIndex := GetCharIndex(Data, EndLine, EndPos, StartIndex, StartLine, StartPos);
+    if (EndIndex = 0) or (EndIndex > Length(Data)) then
+      EndIndex := Length(Data) + 1;
+
+    Dec(StartIndex);
+    if Data[StartIndex] = '"' then
+      // string value
+      while (StartIndex > 1) do
+      begin
+        Dec(StartIndex);
+        if (Data[StartIndex] = '"')  and
+          ((StartIndex = 1) or (Data[StartIndex -1] <> '\'))
+        then
+          Break;
+      end
+    else
+      while (StartIndex > 1) and
+        not CharInSet(Data[StartIndex - 1], [#9, #10, '[', '{', ':', ',', ' '])
+      do
+        Dec(StartIndex);
+    Result := Copy(Data, StartIndex, EndIndex - StartIndex);
+  end
+  else
+    raise EJsonWriterException.Create('Unsupported reader in TJsonRawConverter');
 end;
 
 procedure TJsonRawConverter.WriteJson(const AWriter: TJsonWriter;
@@ -814,7 +937,11 @@ begin
     AWriter.WriteRawValue(AValue.AsString)
   else if AWriter is TJsonObjectWriter then
   begin
+    {$IF CompilerVersion < 37}
     JsonPair :=  TJsonObjectWriter(AWriter).FixedGetContainer as TJsonPair;
+    {$ELSE}
+    JsonPair :=  TJsonObjectWriter(AWriter).Container as TJsonPair;
+    {$ENDIF}
     AWriter.WriteNull;  // to pop the JSONpair
     JsonPair.JsonValue := TJSONValue.ParseJSONValue(AValue.AsString);
   end
@@ -852,6 +979,7 @@ end;
 
 { TTypedJsonStringDictionaryConverter<V> }
 
+{$IF CompilerVersion < 37}
 function TJsonTypedStringDictionaryConverter<V>.ReadJson(
   const AReader: TJsonReader; ATypeInf: PTypeInfo; const AExistingValue: TValue;
   const ASerializer: TJsonSerializer): TValue;
@@ -878,6 +1006,7 @@ begin
     raise;
   end;
 end;
+{$ENDIF}
 
 { TJsonIntegerConverter }
 

@@ -1924,6 +1924,9 @@ begin
         end;
       end;
     end;
+    lspDidChangeWorkspaceFolders:
+      Result := Assigned(ServerCapabilities) and
+                ServerCapabilities.workspace.workspaceFolders.changeNotifications;
     lspWorkspaceSymbol:
       Result := Assigned(ServerCapabilities.workspaceSymbolProvider);
     lspWorkspaceExecuteCommand:
@@ -2308,11 +2311,8 @@ end;
 
 function TLSPClient.SendSyncRequest(const lspKind: TLSPKind; params:
     TLSPBaseParams; Handler: TLSPResponseHandler; Timeout: Integer): Boolean;
-var
-  Id: Integer;
 begin
-  Id := SendRequest(lspKind, params, Handler);
-  FSyncRequestId := Id;
+  FSyncRequestId := SendRequest(lspKind, params, Handler);
   // Wait for the responze
   Result := FSyncRequestEvent.WaitFor(Timeout) = wrSignaled;
   FSyncRequestEvent.ResetEvent;

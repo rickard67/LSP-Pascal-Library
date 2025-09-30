@@ -289,7 +289,7 @@ begin
     end;
     initObj.capabilities.textDocument.semanticTokens.requests.full := SFull;
   end;
-  Result := initObj.AsJSON([TSerializeOption.IgnoreNil, TSerializeOption.IgnoreEmpty]);
+  Result := initObj.AsJSON(True);
 end;
 
 function JsonCallHierarchyIncommingResultToObject(
@@ -1299,13 +1299,13 @@ begin
 
   case lspKind of
     lspInitialize:                    Result := LSPInitializeParamsToJSON(TLSPInitializeParams(Params));
-    lspDidSaveTextDocument:           Result := TLSPDidSaveTextDocumentParams(Params).AsJSON([TSerializeOption.IgnoreEmpty]);
+    lspDidSaveTextDocument:           Result := TLSPDidSaveTextDocumentParams(Params).AsJSON(True);
     lspCompletionItemResolve:         Result := TSerializer.Serialize(TLSPCompletionItemResolveParams(Params).completionItem);
     lspCodeActionResolve:             Result := TSerializer.Serialize(TLSPCodeActionResolveParams(Params).codeaction);
     lspCodeLensResolve:               Result := TSerializer.Serialize(TLSPCodeLensResolveParams(Params).codeLens);
     lspDocumentLinkResolve:           Result := TSerializer.Serialize(TLSPDocumentLinkResolveParams(Params).documentLink);
     lspInlayHintResolve:              Result := TSerializer.Serialize(TLSPInlayHintResolveParams(Params).inlayHint);
-    lspCompletion:                    Result := TLSPCompletionParams(Params).AsJSON([TSerializeOption.IgnoreEmpty]);
+    lspCompletion:                    Result := TLSPCompletionParams(Params).AsJSON(True);
   else
     Result := Params.AsJSON;
   end;

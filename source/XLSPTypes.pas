@@ -1561,10 +1561,18 @@ type
   end;
 
   TJsonTextEditDictConverter =
+    {$IF CompilerVersion < 37}
     class(TJsonTypedStringDictionaryConverter<TArray<TLSPAnnotatedTextEdit>>);
+    {$ELSE}
+    class(TJsonStringDictionaryConverter<TArray<TLSPAnnotatedTextEdit>>);
+    {$ENDIF}
 
   TJsonChangeAnnotationDictConverter =
+    {$IF CompilerVersion < 37}
     class(TJsonTypedStringDictionaryConverter<TLSPChangeAnnotation>);
+    {$ELSE}
+    class(TJsonStringDictionaryConverter<TLSPChangeAnnotation>);
+    {$ENDIF}
 
   TLSPWorkspaceEdit = class(TLSPBaseResult)
   public
@@ -3164,7 +3172,8 @@ type
     constructor Create;
     destructor Destroy; override;
     procedure AddRoot(const sz: string);
-    procedure AddWorkspaceFolders(const ls: TStringList);
+    procedure AddWorkspaceFolders(const stringArray: TArray<string>); overload;
+    procedure AddWorkspaceFolders(const ls: TStringList); overload;
   end;
 
   TLSPSaveOption = record
@@ -4800,6 +4809,7 @@ type
     // also be triggered when file content changes.
     const Automatic = 2;
   end;
+  TLSPDocumentSymbols = TArray<TLSPDocumentSymbol>;
 
   TLSPCodeActionContext = record
     // An array of diagnostics known on the client side overlapping the range
@@ -6049,22 +6059,27 @@ begin
   rootUri := FilePathToUri(sz);
 end;
 
-procedure TLSPInitializeParams.AddWorkspaceFolders(const ls: TStringList);
+procedure TLSPInitializeParams.AddWorkspaceFolders(
+  const stringArray: TArray<string>);
 var
-  i: Integer;
   s: string;
+  workspaceFolder: TLSPWorkspaceFolder;
 begin
-  // Set workspace folders
-  SetLength(workspaceFolders,ls.Count);
-  for i := 0 to ls.Count - 1 do
+  workspaceFolders := [];
+  for s in stringArray do
   begin
-    s := ls[i];
     if s <> '' then
     begin
-      workspaceFolders[i].uri := FilePathToUri(s);
-      workspaceFolders[i].name := ExtractFileName(s);
+      workspaceFolder.uri := FilePathToUri(s);
+      workspaceFolder.name := ExtractFileName(s);
+      workspaceFolders := workspaceFolders + [workspaceFolder];
     end;
   end;
+end;
+
+procedure TLSPInitializeParams.AddWorkspaceFolders(const ls: TStringList);
+begin
+  AddWorkspaceFolders(ls.ToStringArray);
 end;
 
 // TLSPClientCapabilities
