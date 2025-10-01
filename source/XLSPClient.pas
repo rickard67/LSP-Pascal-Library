@@ -300,15 +300,18 @@ type
     function SendRequest(const lspKind: TLSPKind; const method: string = '';
         params: TLSPBaseParams = nil; const paramJSON: string = ''): Integer; overload;
     function SendRequest(const lspKind: TLSPKind; params: TLSPBaseParams): Integer; overload;
-    // SemdRequest overload to handle responses by a provided handler
+    // SemdRequest overloads to handle responses by a provided handler
     // which can be an anonymous method, instead of the component events
     // The handler is executed in the main thread.
     function SendRequest(const lspKind: TLSPKind;  params: TLSPBaseParams;
       Handler: TLSPResponseHandler): Integer; overload;
+    function SendRequest(const lspKind: TLSPKind;  paramJSON: string;
+      Handler: TLSPResponseHandler): Integer; overload;
     // Send a synchronous request.  The method does not return until the
     // server responds.  The handler is executed asynchrounously
     function SendSyncRequest(const lspKind: TLSPKind;  params: TLSPBaseParams;
-      Handler: TLSPResponseHandler; Timeout: Integer = 400): Boolean;
+      Handler: TLSPResponseHandler; Timeout: Integer = 400;
+      paramJson: string = ''): Boolean;
     // Send an LSP notification messase to the server
     // lspKind is one of the client notifications in LSPClientNotifications
     // method: Only used if lspKind = lspUnknown
@@ -317,7 +320,9 @@ type
     // paramJson: if present takes precedence over params
     // return value: The request **unique** id
     procedure SendNotification(const lspKind: TLSPKind; const method: string = '';
-      const params: TLSPBaseParams = nil; const paramJSON: string = '');
+      const params: TLSPBaseParams = nil; const paramJSON: string = ''); overload;
+    procedure SendNotification(const lspKind: TLSPKind;
+      const params: TLSPBaseParams); overload;
     procedure SendSetTraceNotification(const traceValue: string);
     procedure UnRegisterPartialResultToken(const token: string);
     property Id: string read FId write FId;
@@ -2186,6 +2191,12 @@ begin
   SendRequest(lspWorkspaceExecuteCommand, '', nil, argumentsJSON);
 end;
 
+procedure TLSPClient.SendNotification(const lspKind: TLSPKind;
+  const params: TLSPBaseParams);
+begin
+  SendNotification(lspKind, '', params);
+end;
+
 function TLSPClient.SendRequest(const lspKind: TLSPKind;
   const method: string = ''; params: TLSPBaseParams = nil;
   const paramJSON: string = ''): Integer;
@@ -2291,6 +2302,13 @@ begin
   Result := SendRequest(lspKind, '', params);
 end;
 
+function TLSPClient.SendRequest(const lspKind: TLSPKind; paramJSON: string;
+  Handler: TLSPResponseHandler): Integer;
+begin
+  Result := SendRequest(lspKind, '', nil, paramJSON);
+  FHandlerDict.AddOrSetValue(Result, Handler);
+end;
+
 procedure TLSPClient.SendResponse(const id: Variant; params:
     TLSPBaseParams = nil; error: TLSPResponseError = nil; resultType:
     TLSPResultType = lsprNull; const resultString: string = '');
@@ -2312,9 +2330,13 @@ begin
 end;
 
 function TLSPClient.SendSyncRequest(const lspKind: TLSPKind; params:
-    TLSPBaseParams; Handler: TLSPResponseHandler; Timeout: Integer): Boolean;
+    TLSPBaseParams; Handler: TLSPResponseHandler; Timeout: Integer = 400;
+    paramJson: string = ''): Boolean;
 begin
-  FSyncRequestId := SendRequest(lspKind, params, Handler);
+  if params = nil then
+    FSyncRequestId := SendRequest(lspKind, paramJSON, Handler)
+  else
+    FSyncRequestId := SendRequest(lspKind, params, Handler);
   // Wait for the responze
   Result := FSyncRequestEvent.WaitFor(Timeout) = wrSignaled;
   FSyncRequestEvent.ResetEvent;
