@@ -649,6 +649,8 @@ begin
        SharedJsonObject := TSmartPtr.Make(LJson)();
        AHandler(SharedJsonObject)
     end);
+  if Assigned(WakeMainThread) then
+    WakeMainThread(nil);
 end;
 
 var

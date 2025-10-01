@@ -4223,6 +4223,7 @@ type
   //
   TLSPInsertReplaceEdit = record
     // A boolean to inform us if a TLSPInsertReplaceEdit object was found
+    [JsonIgnore]
     insertReplaceEdit: Boolean;
 
     // The string to be inserted.
@@ -7614,6 +7615,7 @@ begin
   Dest.insertTextMode := 1;
   Dest.insertTextFormat := 1;
   Dest.documentation := '""';
+  Dest.kind := 1;
 end;
 
 { TLSPCodeActionResolveResult }
