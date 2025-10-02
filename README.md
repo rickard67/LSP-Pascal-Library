@@ -279,34 +279,43 @@ end;
 
 ### Send request with anonymous methods
 
-The handler is executed in the main thread using SendRequest().
+You can use a SendRequest() overload that accepts a handler procedure. The handler 
+is executed in the Server thread, so you need to use TThread.Queue, if for example
+you need to update the User Interface.
 
 Example:
 ```pascal
   FLSPClient.SendRequest(lspCompletionItemResolve, ResolveParams,
-  procedure(Json: TJSONObject)
-  var
-    Item: TLSPCompletionItem;
-  begin
-    if ResponseError(Json) then Exit;
-    Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
-    Memo1.Lines.Add(TSerializer.Serialize(item));
-  end);
+      procedure(Json: TJSONObject)
+      var
+        Item: TLSPCompletionItem;
+      begin
+        if ResponseError(Json) then Exit;
+        Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
+        TThread.Queue(nil,
+          procedure
+          begin
+            Memo1.Lines.Add(TSerializer.Serialize(item));
+          end);
+      end);
 ```
 
-The handler is executed in the Server thread using SendSyncRequest().
-SendSyncRequest blocks until the server responds or a timeout expires.
+You can also have synchronous execution of a request by using SendSyncRequest().
+The handler is again executed in the Server thread, but the call to SendSyncRequest 
+blocks until the server responds or a timeout expires.
 
 Example:
 ```pascal
  var Item: TLSPCompletionItem;
- if FLSPClient.SendSyncRequest(lspCompletionItemResolve, ResolveParams,
- procedure(Json: TJSONObject)
- begin
-   if ResponseError(Json) then Exit;
-   Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
- end, 400) then
-   Memo1.Lines.Add(TSerializer.Serialize(Item));
+ 
+if FLSPClient.SendSyncRequest(lspCompletionItemResolve, ResolveParams,
+   procedure(Json: TJSONObject)
+   begin
+     if ResponseError(Json) then Exit;
+     Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
+   end, 400) 
+then
+  Memo1.Lines.Add(TSerializer.Serialize(Item));
 ```
 
 ## Initialize
