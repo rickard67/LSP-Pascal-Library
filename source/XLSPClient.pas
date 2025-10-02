@@ -18,29 +18,36 @@
  *    - Asynchronous reading
  *    - Avoid calling Synchronize and Sleep
  *  - Allow for handling server responses with anonymous methods.
- *    The handler is executed in the main thread.
+ *    The handler is executed in the server thread.
  *    Example:
  *      FLSPClient.SendRequest(lspCompletionItemResolve, ResolveParams,
- *      procedure(Json: TJSONObject)
- *      var
- *        Item: TLSPCompletionItem;
- *      begin
- *        if ResponseError(Json) then Exit;
- *        Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
- *        Memo1.Lines.Add(TSerializer.Serialize(item));
- *      end);
+ *        procedure(Json: TJSONObject)
+ *        var
+ *          Item: TLSPCompletionItem;
+ *        begin
+ *          if ResponseError(Json) then Exit;
+ *          Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
+ *          TThread.Queue(nil,
+ *          procedure
+ *          begin
+ *            Memo1.Lines.Add(TSerializer.Serialize(Item));
+ *          end);
+ *        end);
  *  - Added Synchronous requests (SendSyncRequest).
  *    SendSyncRequest blocks until the server responds or a timeout expires.
  *    The handler is executed in the Server thread.
  *    Example:
- *      var Item: TLSPCompletionItem;
+ *      var
+ *        Item: TLSPCompletionItem;
  *      if FLSPClient.SendSyncRequest(lspCompletionItemResolve, ResolveParams,
- *      procedure(Json: TJSONObject)
- *      begin
- *        if ResponseError(Json) then Exit;
- *        Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
- *      end, 400) then
+ *        procedure(Json: TJSONObject)
+ *        begin
+ *          if ResponseError(Json) then Exit;
+ *          Item := TSerializer.Deserialize<TLSPCompletionItem>(Json.Values['result']);
+ *        end, 400)
+ *      then
  *        Memo1.Lines.Add(TSerializer.Serialize(Item));
+ *
  *  - The code base was enormously streamlined (e.g. XSLPFunction down to 1400 from 7000+ lines)
  *  - Removed unnecessary aliases in XLSPTypes
  *  - Refactored error handling in XLSP functions
@@ -302,13 +309,13 @@ type
     function SendRequest(const lspKind: TLSPKind; params: TLSPBaseParams): Integer; overload;
     // SemdRequest overloads to handle responses by a provided handler
     // which can be an anonymous method, instead of the component events
-    // The handler is executed in the main thread.
+    // The handler is executed in the server thread.
     function SendRequest(const lspKind: TLSPKind;  params: TLSPBaseParams;
       Handler: TLSPResponseHandler): Integer; overload;
     function SendRequest(const lspKind: TLSPKind;  paramJSON: string;
       Handler: TLSPResponseHandler): Integer; overload;
     // Send a synchronous request.  The method does not return until the
-    // server responds.  The handler is executed asynchrounously
+    // server responds.  The handler is executed in the server thread
     function SendSyncRequest(const lspKind: TLSPKind;  params: TLSPBaseParams;
       Handler: TLSPResponseHandler; Timeout: Integer = 400;
       paramJson: string = ''): Boolean;
@@ -644,19 +651,23 @@ begin
 end;
 
 procedure TLSPClient.ProcessServerMessage(LJson: TJsonObject);
+// Determines whether the message is a response, a request or a notification
+// and proceeeds accordingly.
+// Needs to free LJson after processing it to avoid memory leaks.
 
-procedure ExecuteInMainThread(AHandler: TLSPResponseHandler);
-begin
-  TThread.Queue(FServerThread, procedure
-    var
-      SharedJsonObject: TJSONObject;
-    begin
-       SharedJsonObject := TSmartPtr.Make(LJson)();
-       AHandler(SharedJsonObject)
-    end);
-  if Assigned(WakeMainThread) then
-    WakeMainThread(nil);
-end;
+  procedure ExecuteInMainThread(AHandler: TLSPResponseHandler);
+  begin
+    TThread.Queue(FServerThread, procedure
+      begin
+        try
+          AHandler(LJson);
+        finally
+          LJson.Free;
+        end;
+      end);
+    if Assigned(WakeMainThread) then
+      WakeMainThread(nil);
+  end;
 
 var
   IdJson, MethodJson: TJSONValue;
@@ -681,21 +692,17 @@ begin
     if FHandlerDict.TryGetValue(Id, Handler) then
     begin
       FHandlerDict.Remove(Id);
+      // Execute the handler in the thread
+      try
+        Handler(LJson);
+      except
+        // Swallow exceptions, otherwise the
+        // main thread will be blocked forever
+      end;
+      // Set the sync event to complete SendSyncRequest
+      LJson.Free;
       if Id = FSyncRequestId then
-      begin
-        // Execute the handler in the thread
-        try
-          Handler(LJson);
-        except
-          // Swallow exceptions, otherwise the
-          // main thread will be blocked forever
-        end;
-        // Set the sync event to complete SendSyncRequest
         FSyncRequestEvent.SetEvent;
-        LJson.Free;
-      end
-      else
-        ExecuteInMainThread(Handler);
     end
     else
       ExecuteInMainThread(ProcessServerResponse);
