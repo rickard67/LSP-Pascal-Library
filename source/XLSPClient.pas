@@ -167,6 +167,7 @@ type
     FInitializeResultObject: TLSPInitializeResult;
     FLogItems: TLspLogItems;
     FLogFileName: string;
+    FLogFileStream: TFileStream;
     FServerThread: TLSPExecuteServerThread;
     FOnCallHierarchyIncomming: TOnCallHierarchyIncommingEvent;
     FOnCallHierarchyOutgoing: TOnCallHierarchyOutgoingEvent;
@@ -258,7 +259,6 @@ type
     procedure OnServerThreadTerminate(Sender: TObject);
     procedure OnConnected(Sender: TObject);
     procedure RegisterCapability(const item: TLSPRegistration);
-    procedure SaveToLogFile(const Msg: string);
     procedure SendResponse(const id: Variant; params: TLSPBaseParams = nil;
       error: TLSPResponseError = nil; resultType: TLSPResultType = lsprNull;
       const resultString: string = '');
@@ -294,6 +294,7 @@ type
     function IncludeText(lspKind: TLSPKind; includeDefault: Boolean): Boolean;
     function IsRequestSupported(const lspKind: TLSPKind): Boolean;
     function LSPKindFromMethod(const s: string): TLSPKind;
+    procedure SaveToLogFile(const Msg: string);
     procedure SendCancelRequest(const lspKind: TLSPKind);
     procedure SendCancelWorkDoneProgress(const token: string);
     procedure SendExecuteCommandRequest(const command: string; const argumentsJSON:
@@ -466,6 +467,7 @@ uses
   System.StrUtils,
   System.TimeSpan,
   System.Rtti,
+  System.IOUtils,
   System.JSON.Serializers,
   XLSPFunctions;
 
@@ -548,6 +550,7 @@ begin
   FInitializeResultObject.Free;
   FHandlerDict.Free;
   FSyncRequestEvent.Free;
+  FLogFileStream.Free;
   inherited;
 end;
 
@@ -1806,6 +1809,7 @@ begin
   FInitialized := False;
   Id := '';
   FreeAndNil(FInitializeResultObject);
+  FreeAndNil(FLogFileStream);
 end;
 
 procedure TLSPClient.RegisterCapability(const item: TLSPRegistration);
@@ -1831,7 +1835,20 @@ end;
 procedure TLSPClient.RunServer(const ACommandline, ADir: string; const AEnvList: string = ''; const AHost: string = '';
     const APort: Integer = 0; const ATransportType: TTransportType = ttStdIO);
 begin
-// Create the server thread and start it
+  // Create log file stream.  It will be destroyed on server termination
+  if FLogFileName <> '' then
+  begin
+    try
+      // start afresh every time
+      if FileExists(FLogFileName) then
+        TFile.Delete(FLogFileName);
+      // Allow accessing the file from editors while the server is ruuning
+      FLogFileStream := TFileStream.Create(FLogFileName, fmCreate or fmShareDenyNone);
+    except
+    end;
+  end;
+
+  // Create the server thread and start it
   FServerThread := TLSPExecuteServerThread.Create(ACommandline, ADir);
 
   // Set environment variables for the server process.
@@ -2142,23 +2159,13 @@ end;
 
 procedure TLSPClient.SaveToLogFile(const Msg: string);
 var
-  FileStream: TFileStream;
   Bytes: TBytes;
 begin
-  if FLogFileName = '' then Exit;
-
+  if FLogFileStream = nil then Exit;
   try
-    if not FileExists(FLogFileName) then
-      FileStream := TFileStream.Create(FLogFileName, fmCreate)
-    else
-      FileStream := TFileStream.Create(FLogFileName, fmOpenReadWrite);
-    try
-      FileStream.Seek(0, soEnd);
-      Bytes := TEncoding.UTF8.GetBytes(SLineBreak + Msg + SLineBreak);
-      FileStream.Write(Bytes, Length(Bytes));
-    finally
-      FileStream.Free;
-    end;
+    Bytes := TEncoding.UTF8.GetBytes(
+      SLineBreak + FormatDateTime('yyyy-mm-dd hh:nn:ss: ', Now) + Msg);
+    FLogFileStream.Write(Bytes, Length(Bytes));
   except
     // A call to this function must not throw an exception.
     // It could cause functions like SendToServer() to fail
@@ -2232,7 +2239,6 @@ begin
     TLSPInitializeParams(Params).processId := GetCurrentProcessId;
     TLSPInitializeParams(Params).clientInfo.name := ClientName;
     TLSPInitializeParams(Params).clientInfo.version := ClientVersion;
-    TLSPInitializeParams(Params).capabilities := TLSPClientCapabilities.Create;
 
     // Call OnInitialize event
     if Assigned(FOnInitialize) then

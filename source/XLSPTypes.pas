@@ -642,9 +642,6 @@ type
     // handle values outside its set gracefully and falls back
     // to a default value when unknown.
     valueSet: TArray<TLSPCodeActionKind>;
-  public
-    constructor Create;
-    destructor Destroy; override;
   end;
 
   TLSPWorkspaceFolder = record
@@ -1533,7 +1530,6 @@ type
     changeAnnotationSupport: TLSPchangeAnnotationSupport;
   public
     constructor Create;
-    destructor Destroy; override;
   end;
 
   TLSPChangeAnnotation = record
@@ -2147,7 +2143,6 @@ type
     // the completion items kinds from `Text` to `Reference` as defined in
     // the initial version of the protocol.
     valueSet: TArray<Integer>;
-    destructor Destroy; override;
   end;
 
   TLSPCompletionClientList = record
@@ -6044,13 +6039,13 @@ uses
 constructor TLSPInitializeParams.Create;
 begin
   inherited;
+  capabilities := TLSPClientCapabilities.Create;
   trace := 'off';
 end;
 
 destructor TLSPInitializeParams.Destroy;
 begin
-  SetLength(workspaceFolders,0);
-  FreeAndNil(capabilities);
+  capabilities.Free;
   inherited;
 end;
 
@@ -6935,25 +6930,6 @@ begin
   documentChanges := True;
 end;
 
-destructor TLSPWorkspaceEditClientCapabilities.Destroy;
-begin
-  SetLength(resourceOperations,0);
-  inherited;
-end;
-
-// TLSPCodeActionKindValues
-
-constructor TLSPCodeActionKindValues.Create;
-begin
-  inherited;
-end;
-
-destructor TLSPCodeActionKindValues.Destroy;
-begin
-  SetLength(valueSet,0);
-  inherited;
-end;
-
 // TLSPCodeActionClientCapabilities
 
 constructor TLSPCodeActionClientCapabilities.Create;
@@ -7073,7 +7049,6 @@ end;
 
 destructor TLSPClientSignatureInformation.Destroy;
 begin
-  SetLength(documentationFormat,0);
   FreeAndNil(parameterInformation);
   inherited;
 end;
@@ -7118,12 +7093,6 @@ begin
   FreeAndNil(inlineValue);
   FreeAndNil(inlayHint);
   FreeAndNil(diagnostic);
-end;
-
-destructor TLSPCompletionItemKindValues.Destroy;
-begin
-  SetLength(valueSet,0);
-  inherited;
 end;
 
 // TLSPTextDocumentSyncClientCapabilities
