@@ -255,6 +255,10 @@ type
 
   TLSPMessageType = (lspMsgError=1, lspMsgWarning, lspMsgInfo, lspMsgLog);
 
+  TLSPMessageTypeHelper = record helper for TLSPMessageType
+    function ToString: string;
+  end;
+
   TLSPShowMessageActionItem = record
     //
     //  A short title like 'Retry', 'Open Log' etc.
@@ -7673,6 +7677,18 @@ end;
 function TLSPInlayHintLabelPart.GetTooltipMarkup: TLSPMarkupContent;
 begin
   Result := TLSPMarkupContent.FromJsonRaw(tooltip);
+end;
+
+{ TLSPMessageTypeHelper }
+
+function TLSPMessageTypeHelper.ToString: string;
+begin
+  case Self of
+    lspMsgError:   Result := 'Error';
+    lspMsgWarning: Result := 'Warning';
+    lspMsgInfo:    Result := 'Info';
+    lspMsgLog:     Result := 'Log';
+  end;
 end;
 
 end.

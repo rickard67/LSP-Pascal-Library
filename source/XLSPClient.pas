@@ -758,15 +758,7 @@ begin
           FOnLogMessage(Self, TLSPMessageType(LInt), LStr);
 
         if liServerMessages in FLogItems then
-        begin
-          case TLSPMessageType(LInt) of
-            TLSPMessageType.lspMsgError: Msg := 'Error: ';
-            TLSPMessageType.lspMsgWarning: Msg := 'Warning: ';
-            TLSPMessageType.lspMsgInfo: Msg := 'Info: ';
-            TLSPMessageType.lspMsgLog: Msg := 'Log: ';
-          end;
-          SaveToLogFile(Msg + LStr + #13#10);
-        end;
+          SaveToLogFile(TLSPMessageType(LInt).ToString + ': ' + LStr + #13#10);
       end;
 
     // LogTrace notification from server
