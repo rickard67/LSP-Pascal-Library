@@ -5237,19 +5237,10 @@ type
     workDoneToken: TLSPProgressToken;
   end;
 
-  TLSPDocumentRangeFormattingParams = class(TLSPBaseParams)
+  TLSPDocumentRangeFormattingParams = class(TLSPDocumentFormattingParams)
   public
-    // The document to format.
-    textDocument: TLSPTextDocumentIdentifier;
-
     // The range to format
     range: TLSPRange;
-
-    // The format options
-    options: TLSPFormattingOptions;
-
-    // An optional token that a server can use to report work done progress.
-    workDoneToken: TLSPProgressToken;
   end;
 
   TLSPDocumentOnTypeFormattingParams = class(TLSPTextDocumentPositionParams)
