@@ -255,6 +255,10 @@ type
 
   TLSPMessageType = (lspMsgError=1, lspMsgWarning, lspMsgInfo, lspMsgLog);
 
+  TLSPMessageTypeHelper = record helper for TLSPMessageType
+    function ToString: string;
+  end;
+
   TLSPShowMessageActionItem = record
     //
     //  A short title like 'Retry', 'Open Log' etc.
@@ -642,9 +646,6 @@ type
     // handle values outside its set gracefully and falls back
     // to a default value when unknown.
     valueSet: TArray<TLSPCodeActionKind>;
-  public
-    constructor Create;
-    destructor Destroy; override;
   end;
 
   TLSPWorkspaceFolder = record
@@ -1533,7 +1534,6 @@ type
     changeAnnotationSupport: TLSPchangeAnnotationSupport;
   public
     constructor Create;
-    destructor Destroy; override;
   end;
 
   TLSPChangeAnnotation = record
@@ -2147,7 +2147,6 @@ type
     // the completion items kinds from `Text` to `Reference` as defined in
     // the initial version of the protocol.
     valueSet: TArray<Integer>;
-    destructor Destroy; override;
   end;
 
   TLSPCompletionClientList = record
@@ -5238,19 +5237,10 @@ type
     workDoneToken: TLSPProgressToken;
   end;
 
-  TLSPDocumentRangeFormattingParams = class(TLSPBaseParams)
+  TLSPDocumentRangeFormattingParams = class(TLSPDocumentFormattingParams)
   public
-    // The document to format.
-    textDocument: TLSPTextDocumentIdentifier;
-
     // The range to format
     range: TLSPRange;
-
-    // The format options
-    options: TLSPFormattingOptions;
-
-    // An optional token that a server can use to report work done progress.
-    workDoneToken: TLSPProgressToken;
   end;
 
   TLSPDocumentOnTypeFormattingParams = class(TLSPTextDocumentPositionParams)
@@ -6044,13 +6034,13 @@ uses
 constructor TLSPInitializeParams.Create;
 begin
   inherited;
+  capabilities := TLSPClientCapabilities.Create;
   trace := 'off';
 end;
 
 destructor TLSPInitializeParams.Destroy;
 begin
-  SetLength(workspaceFolders,0);
-  FreeAndNil(capabilities);
+  capabilities.Free;
   inherited;
 end;
 
@@ -6935,25 +6925,6 @@ begin
   documentChanges := True;
 end;
 
-destructor TLSPWorkspaceEditClientCapabilities.Destroy;
-begin
-  SetLength(resourceOperations,0);
-  inherited;
-end;
-
-// TLSPCodeActionKindValues
-
-constructor TLSPCodeActionKindValues.Create;
-begin
-  inherited;
-end;
-
-destructor TLSPCodeActionKindValues.Destroy;
-begin
-  SetLength(valueSet,0);
-  inherited;
-end;
-
 // TLSPCodeActionClientCapabilities
 
 constructor TLSPCodeActionClientCapabilities.Create;
@@ -7073,7 +7044,6 @@ end;
 
 destructor TLSPClientSignatureInformation.Destroy;
 begin
-  SetLength(documentationFormat,0);
   FreeAndNil(parameterInformation);
   inherited;
 end;
@@ -7118,12 +7088,6 @@ begin
   FreeAndNil(inlineValue);
   FreeAndNil(inlayHint);
   FreeAndNil(diagnostic);
-end;
-
-destructor TLSPCompletionItemKindValues.Destroy;
-begin
-  SetLength(valueSet,0);
-  inherited;
 end;
 
 // TLSPTextDocumentSyncClientCapabilities
@@ -7704,6 +7668,18 @@ end;
 function TLSPInlayHintLabelPart.GetTooltipMarkup: TLSPMarkupContent;
 begin
   Result := TLSPMarkupContent.FromJsonRaw(tooltip);
+end;
+
+{ TLSPMessageTypeHelper }
+
+function TLSPMessageTypeHelper.ToString: string;
+begin
+  case Self of
+    lspMsgError:   Result := 'Error';
+    lspMsgWarning: Result := 'Warning';
+    lspMsgInfo:    Result := 'Info';
+    lspMsgLog:     Result := 'Log';
+  end;
 end;
 
 end.
