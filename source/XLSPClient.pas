@@ -1294,12 +1294,12 @@ begin
       // Send Initialized notification to the server
       SendNotification(lspInitialized, '', nil, '{}');
 
+      // The server is initialized and ready for communication
+      FInitialized := True;
+
       // OnInitialized event
       if Assigned(FOnInitialized) then
         FOnInitialized(Self, FInitializeResultObject);
-
-      // The server is initialized and ready for communication
-      FInitialized := True;
 
       // See if we have anything in our temp buffer string
       if Length(FTempOutput) > 0 then
