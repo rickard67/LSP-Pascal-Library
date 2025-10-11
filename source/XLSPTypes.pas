@@ -1284,6 +1284,8 @@ type
     annotationId: string;
   end;
 
+  TLSPAnnotatedTextEdits = TArray<TLSPAnnotatedTextEdit>;
+
   // A symbol kind.
   TLSPSymbolKind = (
     symUnknown, symFile,symModule,symNamespace,symPackage,symClass,symMethod,symProperty,symField,
