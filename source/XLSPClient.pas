@@ -139,7 +139,7 @@ type
   TOnUnegisterCapabilityEvent = procedure(Sender: TObject; const values: TLSPUnregistrations; var errorCode: Integer; var errorMessage: string) of object;
   TOnWillSaveWaitUntilTextDocumentResponse = procedure(Sender: TObject; const Id: Integer; const values: TArray<TLSPAnnotatedTextEdit>) of object;
   TOnWorkDoneProgressEvent = procedure(Sender: TObject; const token: string; var errorCode: Integer; var errorMessage: string) of object;
-  TOnWorkspaceApplyEditRequestEvent = procedure(Sender: TObject; const value: TLSPApplyWorkspaceEditParams; var responseValue: TLSPApplyWorkspaceEditResponse; var errorCode: Integer; var errorMessage: string) of object;
+  TOnWorkspaceApplyEditRequestEvent = procedure(Sender: TObject; const value: TLSPApplyWorkspaceEditParams; var errorCode: Integer; var errorMessage: string) of object;
   TOnWorkspaceDiagnosticEvent = procedure(Sender: TObject; const Id: Integer; const items: TArray<TLSPWorkspaceDocumentDiagnosticReport>) of object;
   TOnWorkspaceDiagnosticRefreshEvent = procedure(Sender: TObject; const errorCode: Integer; const errorMessage: string) of object;
   TOnWorkspaceFoldersRequestEvent = procedure(Sender: TObject; var values: TLSPWorkspaceFolders; var bSingleFileOpen: Boolean; var bNoWorkspaceFolders: Boolean; var errorCode: Integer; var errorMessage: string) of object;
@@ -295,10 +295,10 @@ type
     function IsRequestSupported(const lspKind: TLSPKind): Boolean;
     function LSPKindFromMethod(const s: string): TLSPKind;
     procedure SaveToLogFile(const Msg: string);
-    procedure SendCancelRequest(const lspKind: TLSPKind);
+    procedure SendCancelRequest(const RequestId: Integer);
     procedure SendCancelWorkDoneProgress(const token: string);
-    procedure SendExecuteCommandRequest(const command: string; const argumentsJSON:
-        string = '');
+    function SendExecuteCommandRequest(const command: string; const argumentsJSON:
+        string = ''): Integer;
     // Send an LSP request messase to the server
     // lspKind is one of the client requests in LSPClientRequests
     // method: Only used if lspKind = lspUnknown
@@ -1004,18 +1004,13 @@ begin
     lspWorkspaceApplyEdit:
       begin
         RequestParams := TSmartPtr.Make(JsonWorkspaceApplyEditParamsToObject(ParamsJson))();
-        ResponseParams := TSmartPtr.Make(TLSPApplyWorkspaceEditResponse.Create)();
-
         if Assigned(FOnWorkspaceApplyEdit) then
           FOnWorkspaceApplyEdit(Self, TLSPApplyWorkspaceEditParams(RequestParams),
-            TLSPApplyWorkspaceEditResponse(ResponseParams), ErrorCode, ErrorMsg);
-
-        // An error occurred. Send the error message back to the server.
-        if ErrorCode <> 0 then
-        begin
-          HandleError;
-          Exit;
-        end;
+            ErrorCode, ErrorMsg);
+        ResponseParams := TSmartPtr.Make(TLSPApplyWorkspaceEditResponse.Create)();
+        TLSPApplyWorkspaceEditResponse(ResponseParams).applied := ErrorCode <> 0;
+        TLSPApplyWorkspaceEditResponse(ResponseParams).failedChange := ErrorCode;
+        TLSPApplyWorkspaceEditResponse(ResponseParams).failureReason := ErrorMsg;
         SendResponse(Id, ResponseParams, nil, lsprObject);
       end;
 
@@ -2165,12 +2160,12 @@ begin
   end;
 end;
 
-procedure TLSPClient.SendCancelRequest(const lspKind: TLSPKind);
+procedure TLSPClient.SendCancelRequest(const RequestId: Integer);
 var
   params: TLSPCancelParams;
 begin
   params := TSmartPtr.Make(TLSPCancelParams.Create)();
-  params.id := Ord(lspKind);
+  params.id := RequestId;
   SendRequest(lspCancelRequest, '', params);
 end;
 
@@ -2186,15 +2181,16 @@ end;
 // The workspace/executeCommand request is sent from the client to the server
 // to trigger command execution on the server.
 // argumentsJSON is optional and should contain an array, e.g. '[{"range": {"end": {...},"start": {...}}}]'
-procedure TLSPClient.SendExecuteCommandRequest(const command: string; const
-    argumentsJSON: string = '');
+// Returns the request id
+function TLSPClient.SendExecuteCommandRequest(const command: string; const
+    argumentsJSON: string = ''): Integer;
 var
   params: TLSPExecuteCommandParams;
 begin
-  params := TLSPExecuteCommandParams.Create;
+  params := TSmartPtr.Make(TLSPExecuteCommandParams.Create)();
   params.command := command;
   params.arguments := argumentsJSON;
-  SendRequest(lspWorkspaceExecuteCommand, '', nil, argumentsJSON);
+  Result := SendRequest(lspWorkspaceExecuteCommand, params);
 end;
 
 procedure TLSPClient.SendNotification(const lspKind: TLSPKind;

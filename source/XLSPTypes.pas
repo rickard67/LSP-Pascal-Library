@@ -1405,10 +1405,28 @@ type
     version: Integer;
   end;
 
+  TLSPOptionalVersionedTextDocumentIdentifier = record
+  public
+    // The text document's URI.
+    uri: TLSPDocumentUri;
+
+    // The version number of this document.
+    // If a versioned text document identifier is sent from the server to the
+    // client and the file is not open in the editor (the server has not
+    // received an open notification before), the server can send `null` to
+    // indicate that the version is known and the content on disk is the
+    // master (as specified with document content ownership).
+    //
+    // The version number of a document will increase after each change,
+    // including undo/redo. The number doesn't need to be consecutive.
+    //integer | null
+    version: Variant;
+  end;
+
   // TextDocumentEdit
   //
   // Describes textual changes on a single text document. The text document is
-  // referred to as a VersionedTextDocumentIdentifier to allow clients to check
+  // referred to as a OptionalVersionedTextDocumentIdentifier to allow clients to check
   // the text document version before an edit is applied. A TextDocumentEdit describes
   // all changes on a version Si and after they are applied move the document to
   // version Si+1. So the creator of a TextDocumentEdit doesn’t need to sort the
@@ -1416,7 +1434,7 @@ type
   TLSPTextDocumentEdit = class(TLSPBaseParams)
   public
     // The text document to change.
-    textDocument: TLSPVersionedTextDocumentIdentifier;
+    textDocument: TLSPOptionalVersionedTextDocumentIdentifier;
 
     // The edits to be applied.
     edits: TArray<TLSPAnnotatedTextEdit>;
@@ -1600,6 +1618,10 @@ type
     // If a client neither supports `documentChanges` nor
     // `workspace.workspaceEdit.resourceOperations` then only plain `TextEdit`s
     // using the `changes` property are supported.
+    (*
+      TextDocumentEdit[] |
+      (TextDocumentEdit | CreateFile | RenameFile | DeleteFile)[]
+    *)
     [JsonConverter(TJsonDocumentChangesConverter)]
     documentChanges: TArray<TLSPBaseParams>;
     (*
@@ -7461,15 +7483,15 @@ begin
         // We have a file command
         Command := TJSONString(JsonObject.Values['kind']).Value;
         if Command = 'create' then
-          Params := TSerializer.Deserialize<TLSPCreateFile>(JsonObject)
+          Params := TSerializer.Deserialize<TLSPCreateFile>(Member)
         else if Command = 'rename' then
-          Params := TSerializer.Deserialize<TLSPRenameFile>(JsonObject)
+          Params := TSerializer.Deserialize<TLSPRenameFile>(Member)
         else if Command = 'delete' then
-          Params := TSerializer.Deserialize<TLSPDeleteFile>(JsonObject)
+          Params := TSerializer.Deserialize<TLSPDeleteFile>(Member)
       end
       else
          // We have a TextDocumentEdit
-         Params := TSerializer.Deserialize<TLSPTextDocumentEdit>(JsonObject);
+         Params := TSerializer.Deserialize<TLSPTextDocumentEdit>(Member);
 
       if Assigned(Params) then
         DocChanges := DocChanges + [Params];
