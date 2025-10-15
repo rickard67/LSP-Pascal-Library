@@ -7491,8 +7491,8 @@ begin
           Params := TSerializer.Deserialize<TLSPDeleteFile>(Member)
       end
       else
-         // We have a TextDocumentEdit
-         Params := TSerializer.Deserialize<TLSPTextDocumentEdit>(Member);
+        // We have a TextDocumentEdit
+        Params := TSerializer.Deserialize<TLSPTextDocumentEdit>(Member);
 
       if Assigned(Params) then
         DocChanges := DocChanges + [Params];
