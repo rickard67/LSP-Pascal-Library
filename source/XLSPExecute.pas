@@ -166,6 +166,9 @@ begin
       // keep the additional bytes if any
       FReadBytes := Copy(FReadBytes, Match.Index + Match.Length + BodyLen - 1);
       SendToClient;
+      //Recursive call to deal with additional messages in the read buffer
+      if Length(FReadBytes) > 0 then
+        ExtractAndSendResponceMessages([]);
     end;
   end
   else
