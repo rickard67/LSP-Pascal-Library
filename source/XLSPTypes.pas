@@ -152,7 +152,7 @@ type
 
   TLSPWorkDoneProgressOptions = class
   public
-	  workDoneProgress: boolean;
+    workDoneProgress: boolean;
   end;
 
   TLSPWorkDoneProgressCancelParams = class(TLSPBaseParams)
@@ -202,10 +202,10 @@ type
     kind: string;
 
     // Controls enablement state of a cancel button. This property is only valid
-	  // if a cancel button got requested in the `WorkDoneProgressStart` payload.
+    // if a cancel button got requested in the `WorkDoneProgressStart` payload.
     //
-	  // Clients that don't support cancellation or don't support control the
-	  // button's enablement state are allowed to ignore the setting.
+    // Clients that don't support cancellation or don't support control the
+    // button's enablement state are allowed to ignore the setting.
     cancellable: boolean;
 
     // Optional, more detailed associated progress message. Contains
@@ -253,7 +253,7 @@ type
     verbose: string;
   end;
 
-  TLSPMessageType = (lspMsgError=1, lspMsgWarning, lspMsgInfo, lspMsgLog);
+  TLSPMessageType = (lspMsgError=1, lspMsgWarning, lspMsgInfo, lspMsgLog, lspMsgDebug);
 
   TLSPMessageTypeHelper = record helper for TLSPMessageType
     function ToString: string;
@@ -270,7 +270,7 @@ type
   public
     // The message type.
     //
-	  // const Error = 1;
+    // const Error = 1;
     // const Warning = 2;
     // const Info = 3;
     // const Log = 4;
@@ -630,13 +630,13 @@ type
 
    // Base kind for a 'fix all' source action: `source.fixAll`.
    //
-	 // 'Fix all' actions automatically fix errors that have a clear fix that
-	 // do not require user input. They should not suppress errors or perform
-	 // unsafe fixes such as generating new types or classes.
-	 //
-	 // @since 3.17.0
+   // 'Fix all' actions automatically fix errors that have a clear fix that
+   // do not require user input. They should not suppress errors or perform
+   // unsafe fixes such as generating new types or classes.
    //
-	 const SourceFixAll = 'source.fixAll';
+   // @since 3.17.0
+   //
+   const SourceFixAll = 'source.fixAll';
   end;
 
   TLSPCodeActionKindValues = class
@@ -749,7 +749,7 @@ type
   TLSPTextDocumentSaveRegistrationOptions = class(TLSPTextDocumentRegistrationOptions)
   public
     // The client is supposed to include the content on save.
-	  includeText: boolean;
+    includeText: boolean;
   end;
 
   TLSPDeclarationRegistrationOptions = class(TLSPTextDocumentRegistrationOptions)
@@ -846,19 +846,19 @@ type
   TLSPInlayHintRegistrationOptions = class(TLSPTextDocumentRegistrationOptions)
   public
     // The server provides support to resolve additional
-	  // information for an inlay hint item.
+    // information for an inlay hint item.
     resolveProvider: boolean;
   end;
 
   TLSPCompletionOptionItem = record
-		// The server has support for completion item label
-		// details (see also `CompletionItemLabelDetails`) when receiving
-		// a completion item in a resolve call.
+    // The server has support for completion item label
+    // details (see also `CompletionItemLabelDetails`) when receiving
+    // a completion item in a resolve call.
     //
-		// @since 3.17.0
+    // @since 3.17.0
     //
-		labelDetailsSupport: boolean;
-	end;
+    labelDetailsSupport: boolean;
+  end;
 
   TLSPCompletionRegistrationOptions = class(TLSPTextDocumentRegistrationOptions)
   public
@@ -991,7 +991,7 @@ type
   TLSPExecuteCommandRegistrationOptions = class(TLSPTextDocumentRegistrationOptions)
   public
     // The commands to be executed on the server
-	  commands: TArray<string>;
+    commands: TArray<string>;
   end;
 
   TLSPHoverOptions = class(TLSPWorkDoneProgressOptions)
@@ -1346,7 +1346,7 @@ type
     // @since 3.17.0
     //
     // Whether a server is allowed to return a location without a range depends on the client
-	  // capability `workspace.symbol.resolveSupport`.
+    // capability `workspace.symbol.resolveSupport`.
     location: TLSPLocation;
 
     // The name of the symbol containing this symbol. This information is for
@@ -1405,10 +1405,28 @@ type
     version: Integer;
   end;
 
+  TLSPOptionalVersionedTextDocumentIdentifier = record
+  public
+    // The text document's URI.
+    uri: TLSPDocumentUri;
+
+    // The version number of this document.
+    // If a versioned text document identifier is sent from the server to the
+    // client and the file is not open in the editor (the server has not
+    // received an open notification before), the server can send `null` to
+    // indicate that the version is known and the content on disk is the
+    // master (as specified with document content ownership).
+    //
+    // The version number of a document will increase after each change,
+    // including undo/redo. The number doesn't need to be consecutive.
+    //integer | null
+    version: Variant;
+  end;
+
   // TextDocumentEdit
   //
   // Describes textual changes on a single text document. The text document is
-  // referred to as a VersionedTextDocumentIdentifier to allow clients to check
+  // referred to as a OptionalVersionedTextDocumentIdentifier to allow clients to check
   // the text document version before an edit is applied. A TextDocumentEdit describes
   // all changes on a version Si and after they are applied move the document to
   // version Si+1. So the creator of a TextDocumentEdit doesn’t need to sort the
@@ -1416,7 +1434,7 @@ type
   TLSPTextDocumentEdit = class(TLSPBaseParams)
   public
     // The text document to change.
-    textDocument: TLSPVersionedTextDocumentIdentifier;
+    textDocument: TLSPOptionalVersionedTextDocumentIdentifier;
 
     // The edits to be applied.
     edits: TArray<TLSPAnnotatedTextEdit>;
@@ -1476,9 +1494,9 @@ type
     symbolKind: TLSPSymbolKindValues;
 
     // The client supports tags on `SymbolInformation`.
-	  // Clients supporting tags have to handle unknown tags gracefully.
+    // Clients supporting tags have to handle unknown tags gracefully.
     //
-	  // @since 3.16.0
+    // @since 3.16.0
     //
     tagSupport: TLSPTagSupport;
 
@@ -1536,6 +1554,7 @@ type
     changeAnnotationSupport: TLSPchangeAnnotationSupport;
   public
     constructor Create;
+    destructor Destroy; override;
   end;
 
   TLSPChangeAnnotation = record
@@ -1600,6 +1619,10 @@ type
     // If a client neither supports `documentChanges` nor
     // `workspace.workspaceEdit.resourceOperations` then only plain `TextEdit`s
     // using the `changes` property are supported.
+    (*
+      TextDocumentEdit[] |
+      (TextDocumentEdit | CreateFile | RenameFile | DeleteFile)[]
+    *)
     [JsonConverter(TJsonDocumentChangesConverter)]
     documentChanges: TArray<TLSPBaseParams>;
     (*
@@ -1638,12 +1661,12 @@ type
 
   TLSPClientInfo = record
   public
-		// The name of the client as defined by the client.
+    // The name of the client as defined by the client.
     name: string;
 
-		// The client's version as defined by the client.
+    // The client's version as defined by the client.
     version: string;
-	end;
+  end;
 
   TLSPServerInfo = record
   public
@@ -1742,7 +1765,7 @@ type
 
   TLSPFileOperationPatternOptions = record
     // The pattern should be matched ignoring casing.
-	  ignoreCase: boolean;
+    ignoreCase: boolean;
   end;
 
   TLSPFileOperationPattern = record
@@ -1848,80 +1871,80 @@ type
 
   TLSPWorkspace = class
   public
-		// The client supports applying batch edits
-		// to the workspace by supporting the request
-		// 'workspace/applyEdit'
+    // The client supports applying batch edits
+    // to the workspace by supporting the request
+    // 'workspace/applyEdit'
     applyEdit: boolean;
 
-		// Capabilities specific to `WorkspaceEdit`s
+    // Capabilities specific to `WorkspaceEdit`s
     workspaceEdit: TLSPWorkspaceEditClientCapabilities;
 
-		// Capabilities specific to the `workspace/didChangeConfiguration`
-		// notification.
+    // Capabilities specific to the `workspace/didChangeConfiguration`
+    // notification.
     didChangeConfiguration: TLSPDidChangeConfigurationClientCapabilities;
 
-		// Capabilities specific to the `workspace/didChangeWatchedFiles`
-		// notification.
+    // Capabilities specific to the `workspace/didChangeWatchedFiles`
+    // notification.
     didChangeWatchedFiles: TLSPDidChangeWatchedFilesClientCapabilities;
 
-		// Capabilities specific to the `workspace/symbol` request.
-		symbol: TLSPWorkspaceSymbolClientCapabilities;
+    // Capabilities specific to the `workspace/symbol` request.
+    symbol: TLSPWorkspaceSymbolClientCapabilities;
 
-		// Capabilities specific to the `workspace/executeCommand` request.
+    // Capabilities specific to the `workspace/executeCommand` request.
     executeCommand: TLSPExecuteCommandClientCapabilities;
 
-		// The client has support for workspace folders.
-		//
-		// Since 3.6.0
+    // The client has support for workspace folders.
+    //
+    // Since 3.6.0
     workspaceFolders: boolean;
 
-		// The client supports `workspace/configuration` requests.
-		//
-		// Since 3.6.0
+    // The client supports `workspace/configuration` requests.
     //
-		configuration: boolean;
+    // Since 3.6.0
+    //
+    configuration: boolean;
 
     // Capabilities specific to the semantic token requests scoped to the
-		// workspace.
+    // workspace.
     //
-		// @since 3.16.0
+    // @since 3.16.0
     //
     semanticTokens: TLSPSemanticTokensWorkspaceClientCapabilities;
 
-		// Capabilities specific to the code lens requests scoped to the
-		// workspace.
+    // Capabilities specific to the code lens requests scoped to the
+    // workspace.
     //
-		// @since 3.16.0
+    // @since 3.16.0
     //
-		codeLens: TLSPCodeLensWorkspaceClientCapabilities;
+    codeLens: TLSPCodeLensWorkspaceClientCapabilities;
 
-		// The client has support for file requests/notifications.
+    // The client has support for file requests/notifications.
     //
-		// @since 3.16.0
+    // @since 3.16.0
     //
-		fileOperations: TLSPFileOperations;
+    fileOperations: TLSPFileOperations;
 
     // Client workspace capabilities specific to inline values.
     //
-		// @since 3.17.0
+    // @since 3.17.0
     //
-		inlineValue: TLSPInlineValueWorkspaceClientCapabilities;
+    inlineValue: TLSPInlineValueWorkspaceClientCapabilities;
 
-		// Client workspace capabilities specific to inlay hints.
+    // Client workspace capabilities specific to inlay hints.
     //
-		// @since 3.17.0
+    // @since 3.17.0
     //
-		inlayHint: TLSPInlayHintWorkspaceClientCapabilities;
+    inlayHint: TLSPInlayHintWorkspaceClientCapabilities;
 
-		// Client workspace capabilities specific to diagnostics.
+    // Client workspace capabilities specific to diagnostics.
     //
-		// @since 3.17.0.
+    // @since 3.17.0.
     //
-		diagnostics: TLSPDiagnosticWorkspaceClientCapabilities;
+    diagnostics: TLSPDiagnosticWorkspaceClientCapabilities;
   public
     constructor Create;
     destructor Destroy; override;
-	end;
+  end;
 
   TLSPWorkspaceFoldersServerCapabilities = record
   public
@@ -1948,9 +1971,9 @@ type
 
     // The server is interested in file notifications/requests.
     //
-		// @since 3.16.0
+    // @since 3.16.0
     //
-		fileOperations: TLSPServerCapabilitiesFileOperations;
+    fileOperations: TLSPServerCapabilitiesFileOperations;
   public
     destructor Destroy; override;
   end;
@@ -1973,13 +1996,13 @@ type
 
     // Capabilities specific to the showMessage request
     //
-		// @since 3.16.0
+    // @since 3.16.0
     //
     showMessage: TLSPShowMessageRequestClientCapabilities;
 
-		// Client capabilities for the show document request.
+    // Client capabilities for the show document request.
     //
-		// @since 3.16.0
+    // @since 3.16.0
     //
     showDocument: TLSPShowDocumentClientCapabilities;
     destructor Destroy; override;
@@ -2028,8 +2051,8 @@ type
   TLSPInsertTextMode = Cardinal;
 
   TLSPInsertTextModeSupport = class
-		valueSet: TArray<TLSPInsertTextMode>;
-	end;
+    valueSet: TArray<TLSPInsertTextMode>;
+  end;
 
   TLSPClientCompletionItem = class
   public
@@ -2064,34 +2087,34 @@ type
     tagSupport: TLSPTagSupport;
 
     // Client supports insert replace edit to control different behavior if
-		// a completion item is inserted in the text or should replace text.
+    // a completion item is inserted in the text or should replace text.
     //
-		// @since 3.16.0
+    // @since 3.16.0
     //
-		insertReplaceSupport: boolean;
+    insertReplaceSupport: boolean;
 
-		// Indicates which properties a client can resolve lazily on a
-		// completion item. Before version 3.16.0 only the predefined properties
-		// `documentation` and `details` could be resolved lazily.
+    // Indicates which properties a client can resolve lazily on a
+    // completion item. Before version 3.16.0 only the predefined properties
+    // `documentation` and `details` could be resolved lazily.
     //
-		// @since 3.16.0
+    // @since 3.16.0
     //
-		resolveSupport: TLSPResolveSupport;
+    resolveSupport: TLSPResolveSupport;
 
-		// The client supports the `insertTextMode` property on
-		// a completion item to override the whitespace handling mode
-		// as defined by the client (see `insertTextMode`).
+    // The client supports the `insertTextMode` property on
+    // a completion item to override the whitespace handling mode
+    // as defined by the client (see `insertTextMode`).
     //
-		// @since 3.16.0
+    // @since 3.16.0
     //
-		insertTextModeSupport: TLSPInsertTextModeSupport;
+    insertTextModeSupport: TLSPInsertTextModeSupport;
 
     // The client has support for completion item label
-		// details (see also `CompletionItemLabelDetails`).
+    // details (see also `CompletionItemLabelDetails`).
     //
-		// @since 3.17.0
+    // @since 3.17.0
     //
-		labelDetailsSupport: boolean;
+    labelDetailsSupport: boolean;
   public
     constructor Create;
     destructor Destroy; override;
@@ -2218,11 +2241,11 @@ type
     parameterInformation: TLSPClientParameterInformation;
 
     // The client supports the `activeParameter` property on
-		// `SignatureInformation` literal.
+    // `SignatureInformation` literal.
     //
-		// @since 3.16.0
+    // @since 3.16.0
     //
-		activeParameterSupport: boolean;
+    activeParameterSupport: boolean;
   public
     constructor Create;
     destructor Destroy; override;
@@ -2604,21 +2627,21 @@ type
   end;
 
   TLSPTypeHierarchyClientCapabilities = class
-	public
-	  // Whether implementation supports dynamic registration. If this is set to
-	  // `true` the client supports the new `(TextDocumentRegistrationOptions &
-	  // StaticRegistrationOptions)` return value for the corresponding server
-	  // capability as well.
+  public
+    // Whether implementation supports dynamic registration. If this is set to
+    // `true` the client supports the new `(TextDocumentRegistrationOptions &
+    // StaticRegistrationOptions)` return value for the corresponding server
+    // capability as well.
     //
-	  dynamicRegistration: boolean;
+    dynamicRegistration: boolean;
   end;
 
   TLSPInlineValueClientCapabilities = class
-	public
-	  // Whether implementation supports dynamic registration for inline
-	  // value providers.
+  public
+    // Whether implementation supports dynamic registration for inline
+    // value providers.
     //
-	  dynamicRegistration: boolean;
+    dynamicRegistration: boolean;
   end;
 
   TLSPInlayHintClientCapabilities = class
@@ -2960,63 +2983,63 @@ type
     cancel: boolean;
 
     // The list of requests for which the client
-		// will retry the request if it receives a
-		// response with error code `ContentModified``
+    // will retry the request if it receives a
+    // response with error code `ContentModified``
     //
-		retryOnContentModified: TArray<string>;
+    retryOnContentModified: TArray<string>;
   public
     destructor Destroy; override;
   end;
 
   TLSPGeneralClientCapabilities = class
-		// Client capabilities specific to regular expressions.
+    // Client capabilities specific to regular expressions.
     //
-		// @since 3.16.0
+    // @since 3.16.0
     //
-		regularExpressions: TLSPRegularExpressionsClientCapabilities;
+    regularExpressions: TLSPRegularExpressionsClientCapabilities;
 
-		// Client capabilities specific to the client's markdown parser.
+    // Client capabilities specific to the client's markdown parser.
     //
-		// @since 3.16.0
+    // @since 3.16.0
     //
-		markdown: TLSPMarkdownClientCapabilities;
+    markdown: TLSPMarkdownClientCapabilities;
 
     // Client capability that signals how the client
-		// handles stale requests (e.g. a request
-		// for which the client will not process the response
-		// anymore since the information is outdated).
+    // handles stale requests (e.g. a request
+    // for which the client will not process the response
+    // anymore since the information is outdated).
     //
-		// @since 3.17.0
+    // @since 3.17.0
     //
-		staleRequestSupport: TLSPStaleRequestSupportClientCapabilities;
+    staleRequestSupport: TLSPStaleRequestSupportClientCapabilities;
 
     // The position encodings supported by the client. Client and server
-		// have to agree on the same position encoding to ensure that offsets
-		// (e.g. character position in a line) are interpreted the same on both
-		// side.
+    // have to agree on the same position encoding to ensure that offsets
+    // (e.g. character position in a line) are interpreted the same on both
+    // side.
     //
-		// To keep the protocol backwards compatible the following applies: if
-		// the value 'utf-16' is missing from the array of position encodings
-		// servers can assume that the client supports UTF-16. UTF-16 is
-		// therefore a mandatory encoding.
+    // To keep the protocol backwards compatible the following applies: if
+    // the value 'utf-16' is missing from the array of position encodings
+    // servers can assume that the client supports UTF-16. UTF-16 is
+    // therefore a mandatory encoding.
     //
-		// If omitted it defaults to ['utf-16'].
+    // If omitted it defaults to ['utf-16'].
     //
-		// Implementation considerations: since the conversion from one encoding
-		// into another requires the content of the file / line the conversion
-		// is best done where the file is read which is usually on the server
-		// side.
+    // Implementation considerations: since the conversion from one encoding
+    // into another requires the content of the file / line the conversion
+    // is best done where the file is read which is usually on the server
+    // side.
     //
-		// @since 3.17.0
+    // @since 3.17.0
     //
-		positionEncodings: TArray<string>; // Optional. Eg. (['utf-8', 'utf-16', 'utf-32']).
+    positionEncodings: TArray<string>; // Optional. Eg. (['utf-8', 'utf-16', 'utf-32']).
   public
     destructor Destroy; override;
-	end;
+  end;
 
   TLSPClientCapabilities = class
   public
-	  // Workspace specific client capabilities.
+    // Workspace specific client capabilities.
     workspace: TLSPWorkspace;
 
     // Text document specific client capabilities.
@@ -3033,14 +3056,14 @@ type
 
     // General client capabilities.
     //
-	  // @since 3.16.0
+    // @since 3.16.0
     //
     general: TLSPGeneralClientCapabilities;
-	  //
-	  // Experimental client capabilities.
-	  //
+    //
+    // Experimental client capabilities.
+    //
     [JsonConverter(TJsonRawConverter)]
-	  &experimental: string;
+    &experimental: string;
   public
     constructor Create;
     destructor Destroy; override;
@@ -3115,17 +3138,17 @@ type
 
   TLSPInitializeParams = class(TLSPBaseParams)
   public
-	  // The process ID of the parent process that started the server.
-	  // Is null if the process has not been started by another process.
-	  // If the parent process is not alive, then the server should exit
-	  // (see exit notification) its process.
-	  processId: Integer; // integer | null
+    // The process ID of the parent process that started the server.
+    // Is null if the process has not been started by another process.
+    // If the parent process is not alive, then the server should exit
+    // (see exit notification) its process.
+    processId: Integer; // integer | null
 
-	  // Information about the client
+    // Information about the client
     //
-	  // @since 3.15.0
-	  //
-	  clientInfo: TLSPClientInfo;
+    // @since 3.15.0
+    //
+    clientInfo: TLSPClientInfo;
 
     // The locale the client is currently showing the user interface
     // in. This must not necessarily be the locale of the operating
@@ -3138,37 +3161,37 @@ type
     //
     locale: Ansistring;
 
-	  // The rootPath of the workspace. Is null
-	  // if no folder is open.
+    // The rootPath of the workspace. Is null
+    // if no folder is open.
     //
-	  // @deprecated in favour of rootUri.
+    // @deprecated in favour of rootUri.
     //
-	  rootPath: string;
+    rootPath: string;
 
-	  // The rootUri of the workspace. Is null if no
-	  // folder is open. If both `rootPath` and `rootUri` are set
-	  // `rootUri` wins.
-	  rootUri: TLSPDocumentUri;
+    // The rootUri of the workspace. Is null if no
+    // folder is open. If both `rootPath` and `rootUri` are set
+    // `rootUri` wins.
+    rootUri: TLSPDocumentUri;
 
-	  // User provided initialization options.
+    // User provided initialization options.
     [JsonConverter(TJsonRawConverter)]
-	  initializationOptions: string;
+    initializationOptions: string;
 
-	  // The capabilities provided by the client (editor or tool)
+    // The capabilities provided by the client (editor or tool)
     capabilities: TLSPClientCapabilities;
 
-	  // The initial trace setting. If omitted trace is disabled ('off').
-	  trace: string; //'off' | 'messages' | 'verbose';
+    // The initial trace setting. If omitted trace is disabled ('off').
+    trace: string; //'off' | 'messages' | 'verbose';
 
-	  // The workspace folders configured in the client when the server starts.
-	  // This property is only available if the client supports workspace folders.
-	  // It can be `null` if the client supports workspace folders but none are
-	  // configured.
-	  //
-	  // @since 3.6.0
+    // The workspace folders configured in the client when the server starts.
+    // This property is only available if the client supports workspace folders.
+    // It can be `null` if the client supports workspace folders but none are
+    // configured.
+    //
+    // @since 3.6.0
     //
     [JsonConverter(TJsonEmptyToNullConverter)]
-	  workspaceFolders: TArray<TLSPWorkspaceFolder>; //WorkspaceFolder[] | null;
+    workspaceFolders: TArray<TLSPWorkspaceFolder>; //WorkspaceFolder[] | null;
   public
     constructor Create;
     destructor Destroy; override;
@@ -4147,17 +4170,17 @@ type
   end;
 
   // Completion was triggered by typing an identifier (24x7 code
-	// complete), manual invocation (e.g Ctrl+Space) or via API.
+  // complete), manual invocation (e.g Ctrl+Space) or via API.
   //
-	// const Invoked: 1 = 1;
+  // const Invoked: 1 = 1;
   //
-	// Completion was triggered by a trigger character specified by
-	// the `triggerCharacters` properties of the
-	// `CompletionRegistrationOptions`.
+  // Completion was triggered by a trigger character specified by
+  // the `triggerCharacters` properties of the
+  // `CompletionRegistrationOptions`.
   //
-	// const TriggerCharacter: 2 = 2;
+  // const TriggerCharacter: 2 = 2;
   //
-	// Completion was re-triggered as the current completion list is incomplete.
+  // Completion was re-triggered as the current completion list is incomplete.
   //
   // const TriggerForIncompleteCompletions: 3 = 3;
   //
@@ -4188,7 +4211,7 @@ type
     context: TLSPCompletionContext;
 
     // An optional token that a server can use to report partial results (e.g.
-	  // streaming) to the client.
+    // streaming) to the client.
     partialResultToken: TLSPProgressToken;
 
     constructor Create(triggerKind: TLSPCompletionTriggerKind = 1);
@@ -4423,41 +4446,41 @@ type
     completionItem: TLSPCompletionItem;
   end;
 
-	// @since 3.17.0
-	TLSPCompletionItemDefaults = record
-	public
-		// A default commit character set.
+  // @since 3.17.0
+  TLSPCompletionItemDefaults = record
+  public
+    // A default commit character set.
     //
-		// @since 3.17.0
+    // @since 3.17.0
     //
-		commitCharacters: TArray<string>;
+    commitCharacters: TArray<string>;
 
-		// A default edit range
+    // A default edit range
     //
-		// @since 3.17.0
+    // @since 3.17.0
     //
     // editRange: Range | { insert: Range; replace: Range; }
     //
-		editRange: TLSPInsertReplaceEdit; // TLSPTextEdit | TLSPInsertReplaceEdit
+    editRange: TLSPInsertReplaceEdit; // TLSPTextEdit | TLSPInsertReplaceEdit
 
-		// A default insert text format
+    // A default insert text format
     //
-		// @since 3.17.0
+    // @since 3.17.0
     //
-		insertTextFormat: TLSPInsertTextFormat;
+    insertTextFormat: TLSPInsertTextFormat;
 
-		// A default insert text mode
+    // A default insert text mode
     //
-		// @since 3.17.0
+    // @since 3.17.0
     //
-		insertTextMode: TLSPInsertTextMode;
+    insertTextMode: TLSPInsertTextMode;
 
-		// A default data value.
+    // A default data value.
     //
-		// @since 3.17.0
+    // @since 3.17.0
     //
     [JsonConverter(TJsonRawConverter)]
-		data: string; // LSPAny;
+    data: string; // LSPAny;
   end;
 
   // Represents a collection of [completion items](#CompletionItem) to be
@@ -4642,8 +4665,8 @@ type
   TLSPDeclarationParams = class(TLSPTextDocumentPositionParams)
   public
     // An optional token that a server can use to report partial results (e.g.
-	  // streaming) to the client.
-	  partialResultToken: TLSPProgressToken;
+    // streaming) to the client.
+    partialResultToken: TLSPProgressToken;
 
     // An optional token that a server can use to report work done progress.
     workDoneToken: TLSPProgressToken;
@@ -4652,8 +4675,8 @@ type
   TLSPDefinitionParams = class(TLSPTextDocumentPositionParams)
   public
     // An optional token that a server can use to report partial results (e.g.
-	  // streaming) to the client.
-	  partialResultToken: TLSPProgressToken;
+    // streaming) to the client.
+    partialResultToken: TLSPProgressToken;
 
     // An optional token that a server can use to report work done progress.
     workDoneToken: TLSPProgressToken;
@@ -4662,8 +4685,8 @@ type
   TLSPImplmentationParams = class(TLSPTextDocumentPositionParams)
   public
     // An optional token that a server can use to report partial results (e.g.
-	  // streaming) to the client.
-	  partialResultToken: TLSPProgressToken;
+    // streaming) to the client.
+    partialResultToken: TLSPProgressToken;
 
     // An optional token that a server can use to report work done progress.
     workDoneToken: TLSPProgressToken;
@@ -4672,8 +4695,8 @@ type
   TLSPTypeDefinitionParams = class(TLSPTextDocumentPositionParams)
   public
     // An optional token that a server can use to report partial results (e.g.
-	  // streaming) to the client.
-	  partialResultToken: TLSPProgressToken;
+    // streaming) to the client.
+    partialResultToken: TLSPProgressToken;
 
     // An optional token that a server can use to report work done progress.
     workDoneToken: TLSPProgressToken;
@@ -4697,8 +4720,8 @@ type
     context: TLSPReferenceContext;
 
     // An optional token that a server can use to report partial results (e.g.
-	  // streaming) to the client.
-	  partialResultToken: TLSPProgressToken;
+    // streaming) to the client.
+    partialResultToken: TLSPProgressToken;
 
     // An optional token that a server can use to report work done progress.
     workDoneToken: TLSPProgressToken;
@@ -4712,8 +4735,8 @@ type
   TLSPDocumentHighlightParams = class(TLSPTextDocumentPositionParams)
   public
     // An optional token that a server can use to report partial results (e.g.
-	  // streaming) to the client.
-	  partialResultToken: TLSPProgressToken;
+    // streaming) to the client.
+    partialResultToken: TLSPProgressToken;
 
     // An optional token that a server can use to report work done progress.
     workDoneToken: TLSPProgressToken;
@@ -4727,7 +4750,7 @@ type
   // Read-access of a symbol, like reading a variable.
   // const Read = 2;
   //
-	// Write-access of a symbol, like writing to a variable.
+  // Write-access of a symbol, like writing to a variable.
   // const Write = 3;
   //
   TLSPDocumentHighlightKind = Cardinal; // 1 | 2 | 3;
@@ -5737,7 +5760,7 @@ type
   end;
 
   // InlineValue = InlineValueText | InlineValueVariableLookup
-	// | InlineValueEvaluatableExpression;
+  // | InlineValueEvaluatableExpression;
   TLSPInlineValue = class
   public
     // Provide inline value as text.
@@ -5806,8 +5829,8 @@ type
   TLSPMonikerParams = class(TLSPTextDocumentPositionParams)
   public
     // An optional token that a server can use to report partial results (e.g.
-	  // streaming) to the client.
-	  partialResultToken: TLSPProgressToken;
+    // streaming) to the client.
+    partialResultToken: TLSPProgressToken;
 
     // An optional token that a server can use to report work done progress.
     workDoneToken: TLSPProgressToken;
@@ -7461,21 +7484,22 @@ begin
         // We have a file command
         Command := TJSONString(JsonObject.Values['kind']).Value;
         if Command = 'create' then
-          Params := TSerializer.Deserialize<TLSPCreateFile>(JsonObject)
+          Params := TSerializer.Deserialize<TLSPCreateFile>(Member)
         else if Command = 'rename' then
-          Params := TSerializer.Deserialize<TLSPRenameFile>(JsonObject)
+          Params := TSerializer.Deserialize<TLSPRenameFile>(Member)
         else if Command = 'delete' then
-          Params := TSerializer.Deserialize<TLSPDeleteFile>(JsonObject)
+          Params := TSerializer.Deserialize<TLSPDeleteFile>(Member)
       end
       else
-         // We have a TextDocumentEdit
-         Params := TSerializer.Deserialize<TLSPTextDocumentEdit>(JsonObject);
+        // We have a TextDocumentEdit
+        Params := TSerializer.Deserialize<TLSPTextDocumentEdit>(Member);
 
       if Assigned(Params) then
         DocChanges := DocChanges + [Params];
     end;
 
     Result := TValue.From(DocChanges);
+    AReader.Skip;
   except
     Exit(TValue.From(DocChanges));
   end;
@@ -7681,8 +7705,14 @@ begin
     lspMsgWarning: Result := 'Warning';
     lspMsgInfo:    Result := 'Info';
     lspMsgLog:     Result := 'Log';
+    lspMsgDebug:   Result := 'Debug';
   end;
 end;
 
-end.
+destructor TLSPWorkspaceEditClientCapabilities.Destroy;
+begin
+  changeAnnotationSupport.Free;
+  inherited;
+end;
 
+end.
