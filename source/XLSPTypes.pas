@@ -5297,8 +5297,6 @@ type
   public
   end;
 
-
-  // Range | { range: Range, placeholder: string } | { defaultBehavior: boolean } | null
   TLSPPrepareRenameResult = class(TLSPBaseResult)
   public
     // Describing a Range of the string to rename
