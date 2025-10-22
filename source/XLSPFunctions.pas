@@ -1164,10 +1164,17 @@ end;
 
 function JsonPrepareRenameResultToObject(const ResultJson: TJSONValue): TLSPPrepareRenameResult;
 begin
-  Result := TLSPPrepareRenameResult.Create;
-
+  // Range | { range: Range, placeholder: string } | { defaultBehavior: boolean } | null
   if ResultJson is TJSONObject then
-    Result.FromJSON(TJSONObject(ResultJson));
+  begin
+    Result := TLSPPrepareRenameResult.Create;
+    if TJSONObject(ResultJson).Values['start'] <> nil then
+      Result.range := TSerializer.Deserialize<TLSPRange>(ResultJson)
+    else
+      Result.FromJSON(TJSONObject(ResultJson));
+  end
+  else
+    Result := nil;  // rename request can not be performmed
 end;
 
 function JsonWorkspaceEditResultToObject(const ResultJson: TJSONValue): TLSPWorkspaceEdit;
@@ -1176,10 +1183,7 @@ begin
   Result := nil;
 
   if ResultJson is TJSONObject then
-  begin
-    Result := TLSPWorkspaceEdit.Create;
-    Result.FromJSON(TJSONObject(ResultJson));
-  end;
+    Result := TSerializer.Deserialize<TLSPWorkspaceEdit>(ResultJson);
 end;
 
 function JsonSelectionRangeResultToObject(const ResultJson: TJSONValue): TLSPSelectionRangeResult;
