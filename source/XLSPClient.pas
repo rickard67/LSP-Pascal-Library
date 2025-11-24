@@ -1759,7 +1759,11 @@ begin
     SaveToLogFile('Read from server:' + #13#10 + AJson);
 
   try
+    {$IF CompilerVersion < 35}
+    JsonObject := TJSONObject.ParseJSONValue(AJson) as TJSONObject;
+    {$ELSE}
     JsonObject := TJSONValue.ParseJSONValue(AJson) as TJSONObject;
+    {$ENDIF}
   except
     Exit;
   end;

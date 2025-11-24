@@ -222,9 +222,11 @@ function CompiledRegEx(Expr: string; Options: TRegExOptions = [roNotEmpty];
   UCP: Boolean = True): TRegEx;
 begin
   Result := TRegEx.Create(Expr, Options);
+  {$IF CompilerVersion > 34}
   if UCP then
     Result.AddRawOptions(PCRE_UCP);
   Result.Study([preJIT]);
+  {$ENDIF}
 end;
 
 function ExpandEnvVars(const Str: string): string;
@@ -951,7 +953,11 @@ begin
     JsonPair :=  TJsonObjectWriter(AWriter).Container as TJsonPair;
     {$ENDIF}
     AWriter.WriteNull;  // to pop the JSONpair
+    {$IF CompilerVersion < 35}
+    JsonPair.JsonValue := TJSONObject.ParseJSONValue(AValue.AsString);
+    {$ELSE}
     JsonPair.JsonValue := TJSONValue.ParseJSONValue(AValue.AsString);
+    {$ENDIF}
   end
   else
     Assert(False, 'Incompatible Writer');

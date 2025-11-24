@@ -3,8 +3,8 @@
 A language server protocol client written in Pascal (Delphi).
 
 ## About this new version
-The component now uses serialization, instead of manually parsing the JSON code.
-This change means it only works in Delphi 11.3 or later.
+The component now uses RTL.JSON to serialize Json, instead of manually parsing the JSON code.
+This means this version only works in Delphi 10.4 or later.
 
 Version 1.x is still available in a separate fork "LSP-Pascal-Library_V1".
 

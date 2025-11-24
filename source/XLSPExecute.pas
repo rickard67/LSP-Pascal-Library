@@ -525,7 +525,9 @@ begin
   if not Terminated then
   begin
     // Receieve asynchrnously
+    {$IF CompilerVersion > 34}
     FLspSocket.ReceiveTimeout := -1; // Infinite
+    {$ENDIF}
     FLspSocket.BeginReceive(ReceiveFinished);
   end;
 

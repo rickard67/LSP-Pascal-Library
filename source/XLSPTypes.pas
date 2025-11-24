@@ -7390,7 +7390,11 @@ begin
   if Full = '' then Exit;
 
   try
+    {$IF CompilerVersion < 35}
+    JsonValue := TSmartPtr.Make(TJSONObject.ParseJSONValue(Full))();
+    {$ELSE}
     JsonValue := TSmartPtr.Make(TJSONValue.ParseJSONValue(Full))();
+    {$ENDIF}
   except
     Exit;
   end;
@@ -7576,7 +7580,11 @@ var
 begin
   if RawJson <> '' then
   begin
+    {$IF CompilerVersion < 35}
+    JsonValue := TSmartPtr.Make(TJsonObject.ParseJSONValue(RawJson))();
+    {$ELSE}
     JsonValue := TSmartPtr.Make(TJsonValue.ParseJSONValue(RawJson))();
+    {$ENDIF}
     if JsonValue is TJsonString then
     begin
       Result.kind := TLSPMarkupKind.plaintext;
@@ -7626,7 +7634,11 @@ var
 begin
   if RawJson <> '' then
   begin
+    {$IF CompilerVersion < 35}
+    JsonValue := TSmartPtr.Make(TJsonObject.ParseJSONValue(RawJson))();
+    {$ELSE}
     JsonValue := TSmartPtr.Make(TJsonValue.ParseJSONValue(RawJson))();
+    {$ENDIF}
     if JsonValue is TJsonString then
       Result.pattern := TJsonString(JsonValue).Value
     else if JsonValue is TJsonObject then
@@ -7651,7 +7663,11 @@ begin
   Result := [];
   if &label <> '' then
   begin
+    {$IF CompilerVersion < 35}
+    JsonValue := TSmartPtr.Make(TJsonObject.ParseJSONValue(&label))();
+    {$ELSE}
     JsonValue := TSmartPtr.Make(TJsonValue.ParseJSONValue(&label))();
+    {$ENDIF}
     if JsonValue is TJSONArray then
       Result := TSerializer.Deserialize<TArray<TLSPInlayHintLabelPart>>(JsonValue);
   end;
@@ -7664,7 +7680,11 @@ begin
   Result := '';
   if &label <> '' then
   begin
+    {$IF CompilerVersion < 35}
+    JsonValue := TSmartPtr.Make(TJsonObject.ParseJSONValue(&label))();
+    {$ELSE}
     JsonValue := TSmartPtr.Make(TJsonValue.ParseJSONValue(&label))();
+    {$ENDIF}
     if JsonValue is TJSONString then
       Result := TJSONString(JsonValue).Value;
   end;
