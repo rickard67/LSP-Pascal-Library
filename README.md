@@ -22,7 +22,7 @@ E.g. to process diagnostics sent from the server:
   // you can use 's := diagnostics[i].messageMarkup.value' or
   // use 's := diagnostics[i].&message' as before.
   
-  // Here we except markup messages when processing diagnostic data
+  // Here we expect markup messages when processing diagnostic data
   s := diagnostics[i].messageMarkup.value;
   if diagnostics[i].messageMarkup.kind = TLSPMarkupKind.markdown then
     // s contain markdown
