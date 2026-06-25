@@ -108,6 +108,9 @@ type
   TOnGotoTypeDefinitionEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPGotoResult) of object;
   TOnGotoImplementationEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPGotoResult) of object;
   TOnHoverEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPHoverResult) of object;
+  TOnInlineCompletionEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPInlineCompletionList) of object;
+  TOnTextDocumentContentEvent = procedure(Sender: TObject; const Id: Integer; const value: TLSPTextDocumentContentResult) of object;
+  TOnTextDocumentContentRefreshEvent = procedure(Sender: TObject; const uri: string; const errorCode: Integer; const errorMessage: string) of object;
   TOnInitializeEvent = procedure(Sender: TObject; var value: TLSPInitializeParams) of object;
   TOnInitializedEvent = procedure(Sender: TObject; var value: TLSPInitializeResult) of object;
   TOnLinkedEditingRangeEvent = procedure(Sender: TObject; const Id: Integer; const values: TLSPLinkedEditingRangeResult) of object;
@@ -222,6 +225,9 @@ type
     FOnInlayHintResolve: TOnInlayHintResolveEvent;
     FOnInlineValue: TOnInlineValueEvent;
     FOnInlineValueRefresh: TOnInlineValueRefreshEvent;
+    FOnInlineCompletion: TOnInlineCompletionEvent;
+    FOnTextDocumentContent: TOnTextDocumentContentEvent;
+    FOnTextDocumentContentRefresh: TOnTextDocumentContentRefreshEvent;
     FOnLinkedEditingRange: TOnLinkedEditingRangeEvent;
     FOnMoniker: TOnMonikerEvent;
     FOnPrepareCallHierarchy: TOnPrepareCallHierarchyEvent;
@@ -351,10 +357,16 @@ type
     property OnInlineValue: TOnInlineValueEvent read FOnInlineValue write FOnInlineValue;
     property OnInlineValueRefresh: TOnInlineValueRefreshEvent
       read FOnInlineValueRefresh write FOnInlineValueRefresh;
+    property OnInlineCompletion: TOnInlineCompletionEvent read FOnInlineCompletion
+      write FOnInlineCompletion;
     property OnPrepareTypeHierarchy: TOnPrepareTypeHierarchyEvent
       read FOnPrepareTypeHierarchy write FOnPrepareTypeHierarchy;
     property OnRegisterCapability: TOnRegisterCapabilityEvent
       read FOnRegisterCapability write FOnRegisterCapability;
+    property OnTextDocumentContent: TOnTextDocumentContentEvent read FOnTextDocumentContent
+      write FOnTextDocumentContent;
+    property OnTextDocumentContentRefresh: TOnTextDocumentContentRefreshEvent
+      read FOnTextDocumentContentRefresh write FOnTextDocumentContentRefresh;
     property OnTypeHierarchySubtypes: TOnPrepareTypeHierarchyEvent
       read FOnTypeHierarchySubtypes write FOnTypeHierarchySubtypes;
     property OnWorkspaceDiagnosticRefresh: TOnWorkspaceDiagnosticRefreshEvent
@@ -876,9 +888,8 @@ begin
     lspPublishDiagnostics:
       if Assigned(FOnPublishDiagnostics) then
       begin
-        Params := TSmartPtr.Make(TLSPPublishDiagnosticsParams.Create)();
-        Params.FromJSON(LJson.Values['params'] as TJSONObject);
-
+        Params := TSmartPtr.Make(JsonPublishDiagnosticsToObject(ParamsJson))();
+        
         FOnPublishDiagnostics(Self,
           TLSPPublishDiagnosticsParams(params).uri,
           TLSPPublishDiagnosticsParams(params).version,
@@ -1179,6 +1190,26 @@ begin
         end;
 
         SendResponse(Id);
+      end;
+
+    // A text document content refresh request was sent from the server.
+    lspTextDocumentContentRefresh:
+      begin
+        RequestParams := TSmartPtr.Make(JsonTextDocumentContentRefreshParams(ParamsJson))();
+
+        // OnTextDocumentContentRefresh event
+        if Assigned(FOnTextDocumentContentRefresh) then
+          FOnTextDocumentContentRefresh(Self, TLSPTextDocumentContentRefreshParams(RequestParams).uri, ErrorCode, ErrorMsg);
+
+        // An error occurred. Send the error message back to the server.
+        if errorCode <> 0 then
+        begin
+          HandleError;
+          Exit;
+        end;
+
+        // Return void to the server.
+        SendResponse(Id, nil, nil, lsprNull);
       end;
 
     // workspace/configuration request is sent from the server to the client to fetch configuration
@@ -1532,6 +1563,22 @@ begin
       begin
         ResultObj := TSmartPtr.Make(JsonInlineValueResultToObject(ResultJson))();
         FOnInlineValue(Self, Id, TLSPInlineValueResult(ResultObj));
+      end;
+
+    // An inline completion request was sent to the server. An event is triggered when the server responds.
+    lspInlineCompletion:
+      if Assigned(FOnInlineCompletion) then
+      begin
+        ResultObj := TSmartPtr.Make(JsonInlineCompletionResultToObject(ResultJson))();
+        FOnInlineCompletion(Self, Id, TLSPInlineCompletionList(ResultObj));
+      end;
+
+    // A text document content request was sent to the server. An event is triggered when the server responds.
+    lspTextDocumentContent:
+      if Assigned(FOnTextDocumentContent) then
+      begin
+        ResultObj := TSmartPtr.Make(JsonTextDocumentContentResultToObject(ResultJson))();
+        FOnTextDocumentContent(Self, Id, TLSPTextDocumentContentResult(ResultObj));
       end;
 
     // Document diagnostic request was sent to the server. An event is triggered when the server responds.
@@ -2055,6 +2102,10 @@ begin
       Result := Assigned(ServerCapabilities.inlayHintProvider) and ServerCapabilities.inlayHintProvider.resolveProvider;
     lspInlineValue:
       Result := Assigned(ServerCapabilities.inlineValueProvider);
+    lspInlineCompletion:
+      Result := Assigned(ServerCapabilities.inlineCompletionProvider);
+    lspTextDocumentContent:
+      Result := Assigned(ServerCapabilities.workspace.textDocumentContent);
   end;
 end;
 

@@ -2,9 +2,58 @@
 
 A language server protocol client written in Pascal (Delphi).
 
-## About this new version
+## New in this version
+Updated to use version 3.18 of the Language Server Protocol.
+
+### Diagnostics
+Support for markup content in diagnostic messages.
+
+To tell the server the client can handle markup content use:
+
+``` // Capabilities/textDocument/Diagnostic
+  value.capabilities.AddDiagnosticSupport(...);
+```
+inside the OnInitialize() event.
+
+E.g. to process diagnostics sent from the server:
+
+``` 
+  // If the client or server does not support markup messages
+  // you can use 's := diagnostics[i].messageMarkup.value' or
+  // use 's := diagnostics[i].&message' as before.
+  
+  // Here we except markup messages when processing diagnostic data
+  s := diagnostics[i].messageMarkup.value;
+  if diagnostics[i].messageMarkup.kind = TLSPMarkupKind.markdown then
+    // s contain markdown
+  else
+    // s contain plain text
+ ```
+ 
+### Inline Completion
+Added class (TLSPInlineCompletionParams) for sending a request to the server and an event
+handler (OnInlineCompletion) to process the response from the server. For more info see
+documentation below or visit the official language server protocol documentation.
+
+### Text Document Content
+Added class (TLSPTextDocumentContentParams) for sending a request to the server and event 
+handler (OnTextDocumentContent) to process the response from the server. For more info see 
+documentation below or visit the official language server protocol documentation.
+
+### Text Document Content Refresh
+Added event handler (OnTextDocumentContentRefresh) to process the server request and 
+added responds back to the server.
+For more info see documentation below or visit the official
+language server protocol documentation.
+
+### Many minor additions.
+See the official language server protocol documentation for more information on what 
+has been added in the new version of the protocol.
+
+ 
 The component now uses RTL.JSON to serialize Json, instead of manually parsing the JSON code.
 This means this version only works in Delphi 10.4 or later.
+
 
 Version 1.x is still available in a separate fork "LSP-Pascal-Library_V1".
 
@@ -32,93 +81,96 @@ How to update to this new version [update help](docs/Migrate_to_new_version.md).
 - [Basic Information](#basic-information)
 - [Demo](#demo)
 - [Using the Library](#using-the-library)
-   - [Running the LSP server](#running-the-lsp-server)
-   - [Send requests to the server](#send-requests-to-the-server)
-   - [Send notifications to the server](#send-notifications-to-the-server)
-   - [SendRequest with anonymous methods](#send-request-with-anonymous-methods)
-   - [Notifications or responces sent from the server](#notifications-or-responses-sent-from-the-server)
+    - [Running the LSP server](#running-the-lsp-server)
+    - [Send requests to the server](#send-requests-to-the-server)
+    - [Send notifications to the server](#send-notifications-to-the-server)
+    - [SendRequest with anonymous methods](#send-request-with-anonymous-methods)
+    - [Notifications or responces sent from the server](#notifications-or-responses-sent-from-the-server)
 - [Initialize](#initialize)
 - [Register/Unregister Capability](#registerunregister-capability)
 - [Closing or exiting the server](#closing-or-exiting-the-server)
 - [Text Document Synchronization](#text-document-synchronization)
-   - [DidOpenTextDocument Notification](#didopentextdocument-notification)
-   - [DidChangeTextDocument Notification](#didchangetextdocument-notification)
-   - [DidCloseTextDocument Notification](#didclosetextdocument-notification)
-   - [DidSaveTextDocument Notification](#didsavetextdocument-notification)
-   - [WillSaveTextDocument Notification](#willsavetextdocument-notification)
-   - [WillSaveWaitUntilTextDocument Request](#willsavewaituntiltextdocument-request)
+    - [DidOpenTextDocument Notification](#didopentextdocument-notification)
+    - [DidChangeTextDocument Notification](#didchangetextdocument-notification)
+    - [DidCloseTextDocument Notification](#didclosetextdocument-notification)
+    - [DidSaveTextDocument Notification](#didsavetextdocument-notification)
+    - [WillSaveTextDocument Notification](#willsavetextdocument-notification)
+    - [WillSaveWaitUntilTextDocument Request](#willsavewaituntiltextdocument-request)
 - [Notebook Document Synchronization](#notebook-document-synchronization)
-   - [DidOpenNotebookDocument Notification](#didopennotebookdocument-notification)
-   - [DidChangeNotebookDocument Notification](#didchangenotebookdocument-notification)
-   - [DidSaveNotebookDocument Notification](#didsavenotebookdocument-notification)
-   - [DidCloseNotebookDocument Notification](#didclosenotebookdocument-notification)
+    - [DidOpenNotebookDocument Notification](#didopennotebookdocument-notification)
+    - [DidChangeNotebookDocument Notification](#didchangenotebookdocument-notification)
+    - [DidSaveNotebookDocument Notification](#didsavenotebookdocument-notification)
+    - [DidCloseNotebookDocument Notification](#didclosenotebookdocument-notification)
 - [Language Features](#language-features)
-   - [Completion Request](#completion-request)
-      - [Completion Item Resolve Request](#completion-item-resolve-request)
-   - [Hover request](#hover-request)
-   - [Signature Help Request](#signature-help-request)
-   - [Publish Diagnostics Notification](#publish-diagnostics-notification)
-   - [Pull Diagnostics](#pull-diagnostics)
-      - [Document Diagnostics](#document-diagnostics)
-      - [Workspace Diagnostics](#workspace-diagnostics)
-      - [Workspace Diagnostic Refresh Request](#workspace-diagnostic-refresh-request)
-   - [Goto Requests](#goto-requests)
-      - [Goto Declaration Request](#goto-declaration-request)
-      - [Goto Definition Request](#goto-definition-request)
-      - [Goto Implementation Request](#goto-implementation-request)
-      - [Goto Type Definition Request](#goto-type-definition-request)
-   - [Find References Request](#find-references-request)
-   - [Document Highlight Request](#document-highlight-request)
-   - [Document Symbols Request](#document-symbols-request)
-   - [Code Action Request](#code-action-request)
-      - [Code Action Resolve Request](#code-action-resolve-request)
-   - [Code Lens Request](#code-lens-request)
-      - [Code Lens Resolve Request](#code-lens-resolve-request)
-      - [Code Lens Refresh Request](#code-lens-refresh-request)
-   - [Document Link Request](#document-link-request)
-      - [Document Link Resolve Request](#document-link-resolve-request)
-   - [Document Color Request](#document-color-request)
-   - [Color Presentation Request](#color-presentation-request)
-   - [Document Formatting Request](#document-formatting-request)
-   - [Document Range Formatting Request](#document-range-formatting-request)
-   - [Document OnTypeFormatting Request](#document-ontypeformatting-request)
-   - [Folding Range Request](#folding-range-request)
-   - [Selection Range Request](#selection-range-request)
-   - [Prepare Call Hierarchy Request](#prepare-call-hierarchy-request)
-   - [Call Hierarchy Incomming Calls](#call-hierarchy-incomming-calls)
-   - [Call Hierarchy Outgoing Calls](#call-hierarchy-outgoing-calls)
-   - [Prepare Type Hierarchy Request](#prepare-type-hierarchy-request)
-      - [Type Hierarchy Supertypes](#type-hierarchy-supertypes)
-      - [Type Hierarchy Subtypes](#type-hierarchy-subtypes)
-   - [Semantic Tokens](#semantic-tokens)
-      - [Semantic Tokens for a whole file](#semantic-tokens-for-a-whole-file)
-      - [Semantic Tokens delta for a whole file](#semantic-tokens-delta-for-a-whole-file)
-      - [Semantic Tokens for a range](#semantic-tokens-for-a-range)
-      - [Semantic Tokens Refresh](#semantic-tokens-refresh)
-   - [Linked Editing Range](#linked-editing-range)
-   - [Monikers](#monikers)
-   - [Inlay Hint Request](#inlay-hint-request)
-      - [Inlay Hint Resolve Request](#inlay-hint-resolve-request)
-      - [Inlay Hint Refresh Request](#inlay-hint-refresh-request)
-   - [Inline Value Request](#inline-value-request)
-      - [Inline Value Refresh Request](#inline-value-refresh-request)
+    - [Completion Request](#completion-request)
+        - [Completion Item Resolve Request](#completion-item-resolve-request)
+    - [Hover request](#hover-request)
+    - [Signature Help Request](#signature-help-request)
+    - [Publish Diagnostics Notification](#publish-diagnostics-notification)
+    - [Pull Diagnostics](#pull-diagnostics)
+        - [Document Diagnostics](#document-diagnostics)
+        - [Workspace Diagnostics](#workspace-diagnostics)
+        - [Workspace Diagnostic Refresh Request](#workspace-diagnostic-refresh-request)
+    - [Goto Requests](#goto-requests)
+        - [Goto Declaration Request](#goto-declaration-request)
+        - [Goto Definition Request](#goto-definition-request)
+        - [Goto Implementation Request](#goto-implementation-request)
+        - [Goto Type Definition Request](#goto-type-definition-request)
+    - [Find References Request](#find-references-request)
+    - [Document Highlight Request](#document-highlight-request)
+    - [Document Symbols Request](#document-symbols-request)
+    - [Code Action Request](#code-action-request)
+        - [Code Action Resolve Request](#code-action-resolve-request)
+    - [Code Lens Request](#code-lens-request)
+        - [Code Lens Resolve Request](#code-lens-resolve-request)
+        - [Code Lens Refresh Request](#code-lens-refresh-request)
+    - [Document Link Request](#document-link-request)
+        - [Document Link Resolve Request](#document-link-resolve-request)
+    - [Document Color Request](#document-color-request)
+    - [Color Presentation Request](#color-presentation-request)
+    - [Document Formatting Request](#document-formatting-request)
+    - [Document Range Formatting Request](#document-range-formatting-request)
+    - [Document OnTypeFormatting Request](#document-ontypeformatting-request)
+    - [Folding Range Request](#folding-range-request)
+    - [Selection Range Request](#selection-range-request)
+    - [Prepare Call Hierarchy Request](#prepare-call-hierarchy-request)
+    - [Call Hierarchy Incomming Calls](#call-hierarchy-incomming-calls)
+    - [Call Hierarchy Outgoing Calls](#call-hierarchy-outgoing-calls)
+    - [Prepare Type Hierarchy Request](#prepare-type-hierarchy-request)
+        - [Type Hierarchy Supertypes](#type-hierarchy-supertypes)
+        - [Type Hierarchy Subtypes](#type-hierarchy-subtypes)
+    - [Semantic Tokens](#semantic-tokens)
+        - [Semantic Tokens for a whole file](#semantic-tokens-for-a-whole-file)
+        - [Semantic Tokens delta for a whole file](#semantic-tokens-delta-for-a-whole-file)
+        - [Semantic Tokens for a range](#semantic-tokens-for-a-range)
+        - [Semantic Tokens Refresh](#semantic-tokens-refresh)
+    - [Linked Editing Range](#linked-editing-range)
+    - [Monikers](#monikers)
+    - [Inlay Hint Request](#inlay-hint-request)
+        - [Inlay Hint Resolve Request](#inlay-hint-resolve-request)
+        - [Inlay Hint Refresh Request](#inlay-hint-refresh-request)
+    - [Inline Value Request](#inline-value-request)
+        - [Inline Value Refresh Request](#inline-value-refresh-request)
+    - [Inline Completion Request](#inline-completion-request)
 - [Workspace Features](#workspace-features)
-   - [Execute Command Request](#execute-command-request)
-   - [DidChangeWorkspaceFolders Notification](#didchangeworkspacefolders-notification)
-   - [DidChangeConfiguration Notification](#didchangeconfiguration-notification)
-   - [DidChangeWatchedFiles Notification](#didchangewatchedfiles-notification)
-   - [DidCreateFiles Notification](#didcreatefiles-notification)
-   - [DidDeleteFiles Notification](#diddeletefiles-notification)
-   - [DidRenameFiles Notification](#didrenamefiles-notification)
-   - [WillCreateFiles request](#willcreatefiles-request)
-   - [WillDeleteFiles request](#willdeletefiles-request)
-   - [WillRenameFiles request](#willrenamefiles-request)
-   - [Workspace Symbols Request](#workspace-symbols-request)
-   - [Rename Request](#rename-request)
-   - [Prepare Rename Request](#prepare-rename-request)
-   - [OnConfiguration](#onconfiguration)
-   - [OnProgress](#onprogress)
-   - [OnWorkspaceApplyEdit](#onworkspaceapplyedit)
+    - [Execute Command Request](#execute-command-request)
+    - [DidChangeWorkspaceFolders Notification](#didchangeworkspacefolders-notification)
+    - [DidChangeConfiguration Notification](#didchangeconfiguration-notification)
+    - [DidChangeWatchedFiles Notification](#didchangewatchedfiles-notification)
+    - [DidCreateFiles Notification](#didcreatefiles-notification)
+    - [DidDeleteFiles Notification](#diddeletefiles-notification)
+    - [DidRenameFiles Notification](#didrenamefiles-notification)
+    - [WillCreateFiles request](#willcreatefiles-request)
+    - [WillDeleteFiles request](#willdeletefiles-request)
+    - [WillRenameFiles request](#willrenamefiles-request)
+    - [Workspace Symbols Request](#workspace-symbols-request)
+    - [Rename Request](#rename-request)
+    - [Prepare Rename Request](#prepare-rename-request)
+    - [OnConfiguration](#onconfiguration)
+    - [OnProgress](#onprogress)
+    - [OnWorkspaceApplyEdit](#onworkspaceapplyedit)
+    - [Text Document Content Request](#text-document-content-request)
+    - [Text Document Content Refresh Request](#text-document-content-refresh-request)
 - [Language identifiers](#language-identifiers)
 
 ## Basic Information
@@ -149,7 +201,9 @@ To run you need to install the PHP Intelephense language server.
 - Install Nodejs for Windows https://nodejs.org/en/download/
 - Install Intelephense by open a command prompt and type:
 
-``` >npm install intelephense -g ```
+```
+>npm install intelephense -g
+```
 
 Run the demo and open settings. Make sure it says something like below:
 
@@ -174,7 +228,9 @@ for each LSP server you intend to run.
 
 Use the function below to run a server.
 
-``` LSPClient1.RunServer(const ACommandline, ADir: string); ```
+```
+LSPClient1.RunServer(const ACommandline, ADir: string);
+```
 
 Now you can use SendRequest(lspInitialize) to initialize the server and start
 communicating.
@@ -1634,7 +1690,7 @@ begin
   FLSPClient1.SendRequest(lspCodeAction, '', params);
 end;
 
-procedure OnCodeAction1(Sender: TObject; const Id: Integer; const value: TLSPCodeActionResponse);
+procedure OnCodeAction1(Sender: TObject; const Id: Integer; const value: TLSPCodeActionResult);
 var
   i: Integer;
   item: TLSPCodeAction;
@@ -1642,7 +1698,7 @@ var
 begin
   f := TSelectForm.Create(Self);
   try
-    for i := 0 to value.codeActions.Count - 1 do
+    for i := 0 to Length(value.codeActions) - 1 do
     begin
       item := TLSPCodeAction.Create;
       if value.codeActions[i].title <> '' then
@@ -2822,6 +2878,60 @@ end;
 
 ```
 
+### Inline Completion Request
+
+The inline completion request is sent from the client to the server to compute inline 
+completions for a given text document either explicitly by a user gesture or implicitly 
+when typing.
+
+Inline completion items usually complete bigger portions of text (e.g., whole methods) 
+and in contrast to completions, items can complete code that might be syntactically or 
+semantically incorrect.
+
+```pascal
+// To indicate that the client support inlineCompletion add
+// a call to AddInlineCompletionSupport(True) in the OnInitialize() event.
+
+FLSPClient1.OnInlineCompletion := OnInlineCompletion;
+
+var
+  i: Integer;
+  params: TLSPInlineCompletionParams;
+begin
+  if not FLSPClient1.IsRequestSupported(lspInlineCompletion) then Exit;
+
+  params := TSmartPtr.Make(TLSPInlineCompletionParams.Create)();
+
+  // Get text document id
+  params.textDocument.uri := FilePathToUri('c:\source\foo.php');
+
+  // The document position.
+  params.position.line := FCurY;
+  params.position.character := FCurX;
+
+  FLSPClient1.SendRequest(lspInlineCompletion, '', params);
+end;
+
+procedure OnInlineCompletion(Sender: TObject; const Id: Integer; const values: TLSPInlineCompletionList);
+var
+  i: Integer;
+  s: string;
+begin
+  if not Assigned(values) then Exit;
+
+  // Handle inline completion values
+  for i := 0 to Length(values.items) - 1 do
+  begin
+    if values.items[i].insertTextValue.kind = 'snippet' then
+    begin
+      s := values.items[i].insertTextValue.value;
+      AddSnippetToList(s);
+    end;
+    ...
+  end;
+end;
+```
+
 
 ## Workspace Features
 
@@ -3387,6 +3497,54 @@ begin
     end;
     responseValue.applied := True;
   end;
+end;
+```
+
+### Text Document Content Request
+The workspace/textDocumentContent request is sent from the client to the server
+to dynamically fetch the content of a text document. Clients should treat the content
+returned from this requests as readonly.
+
+```pascal
+// In OnInitialize() add a call to 'value.capabilities.AddTextDocumentContentSupport(False);'
+
+FLSPClient1.OnTextDocumentContent := OnTextDocumentContent1;
+
+var
+  i: Integer;
+  params: TLSPTextDocumentContentParams;
+begin
+  if not FLSPClient1.IsRequestSupported(lspTextDocumentContent) then Exit;
+
+  params := TSmartPtr.Make(TLSTextDocumentContentParams.Create)();
+  params.uri := FilePathToUri('c:\source\foo.cpp');
+
+  FLSPClient1.SendRequest(lspTextDocumentContent, '', params);
+end;
+
+procedure OnTextDocumentContent1(Sender: TObject; const Id: Integer; const value: TLSPTextDocumentContentResult);
+var
+   s: string;
+begin
+  if Assigned(value) then
+  begin
+    // Read the document content
+    s := value.text;
+  end;
+end;
+```
+
+### Text Document Content Refresh Request
+The workspace/textDocumentContent/refreshrequest is sent from the server to the client
+to refresh the content of a specific text document.
+
+```pascal
+FLSPClient1.OnTextDocumentContentRefresh := OnTextDocumentContentRefresh1;
+
+procedure OnTextDocumentContentRefresh1(Sender: TObject; const uri: string; const errorCode: Integer; const errorMessage: string);
+begin
+  // Refresh document content
+  ...
 end;
 ```
 

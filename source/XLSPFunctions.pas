@@ -82,8 +82,14 @@ function JsonInlayHintResolveResultToObject(const ResultJson: TJSONValue):
     TLSPInlayHintResolveResult;
 function JsonInlayHintResultToObject(const ResultJson: TJSONValue):
     TLSPInlayHintResult;
+function JsonInlineCompletionResultToObject(const ResultJson: TJSONValue):
+    TLSPInlineCompletionList;
 function JsonInlineValueResultToObject(const ResultJson: TJSONValue):
     TLSPInlineValueResult;
+function JsonTextDocumentContentResultToObject(const ResultJson: TJSONValue):
+    TLSPTextDocumentContentResult;
+function JsonTextDocumentContentRefreshParams(const ParamsJson: TJSONValue):
+    TLSPTextDocumentContentRefreshParams;
 function JsonLinkedEditingRangeResultToObject(const ResultJson: TJsonValue):
     TLSPLinkedEditingRangeResult;
 function JsonLogTraceParamsToObject(const ParamsJson: TJsonValue):
@@ -95,6 +101,8 @@ function JsonPrepareTypeHierarchyResultToObject(const ResultJson: TJsonValue):
     TLSPPrepareTypeHierarchyResult;
 function JsonProgressValueToResult(const kind: Integer; const ParamsJson:
     TJSONValue): TLSPBaseResult;
+function JsonPublishDiagnosticsToObject(const ResultJson: TJSONValue):
+    TLSPPublishDiagnosticsParams;
 function JsonRegisterCapabilitiesToRegistrations(const ParamsJson: TJSONValue):
     TArray<TLSPRegistration>;
 function JsonPrepareRenameResultToObject(const ResultJson: TJSONValue):
@@ -411,11 +419,38 @@ begin
 end;
 
 function JsonDocumentDiagnosticReportToObject(const ResultJson: TJSONValue): TLSPRelatedDocumentDiagnosticReport;
+var
+  i: Integer;
+  s: string;
+  JsonValue: TJsonValue;
 begin
   Result := TLSPRelatedDocumentDiagnosticReport.Create;
 
   if ResultJson is TJSONObject then
+  begin
     Result.FromJSON(TJSONObject(ResultJson));
+
+    // Result.Items may contain markdown in the &message field as raw Json.
+    // Check all Result.items and fill messageMarkup with some valid values.
+    for i := 0 to Length(Result.items) - 1 do
+    begin
+      s := Result.items[i].&message;
+      JsonValue := TJsonObject.ParseJSONValue(s);
+      if Assigned(JsonValue) and (JsonValue is TJsonObject) then
+      begin
+        if JsonValue.GetValue<string>('kind') = 'markdown' then
+          Result.items[i].messageMarkup.kind := TLSPMarkupKind.markdown
+        else
+          Result.items[i].messageMarkup.kind := TLSPMarkupKind.plaintext;
+        Result.items[i].messageMarkup.value := JsonValue.GetValue<string>('value');
+      end
+      else
+      begin
+        Result.items[i].messageMarkup.kind := TLSPMarkupKind.plaintext;
+        Result.items[i].messageMarkup.value := s;
+      end;
+    end;
+  end;
 end;
 
 function JsonDocumentFormattingResultToObject(const ResultJson: TJSONValue): TLSPTextEditResult;
@@ -994,6 +1029,17 @@ begin
       TJsonObject(LCapabilities.Values['diagnosticProvider']));
   end;
 
+  // inlineCompletionProvider
+  // @since 3.18.0
+  // The server provides inline completions.
+  if (LCapabilities.Values['inlineCompletionProvider'] is TJSONObject) or
+    LCapabilities.GetValue<Boolean>('inlineCompletionProvider', False) then
+  begin
+    Result.capabilities.inlineCompletionProvider := TLSPInlineCompletionOptions.Create;
+    Result.capabilities.inlineCompletionProvider.workDoneProgress :=
+      LCapabilities.GetValue('inlineCompletionProvider.workDoneProgress', False);
+  end;
+
   // Workspace
   //
   // Workspace specific server capabilities
@@ -1091,6 +1137,41 @@ begin
   end;
 end;
 
+function JsonPublishDiagnosticsToObject(const ResultJson: TJSONValue): TLSPPublishDiagnosticsParams;
+var
+  i: Integer;
+  s: string;
+  JsonValue: TJsonValue;
+begin
+  Result := TLSPPublishDiagnosticsParams.Create;
+
+  if ResultJson is TJSONObject then
+  begin
+    Result.FromJSON(TJSONObject(ResultJson));
+
+    // Result.Items may contain markdown in the &message field as raw Json.
+    // Check all Result.items and fill messageMarkup with some valid values.
+    for i := 0 to Length(Result.diagnostics) - 1 do
+    begin
+      s := Result.diagnostics[i].&message;
+      JsonValue := TJsonObject.ParseJSONValue(s);
+      if Assigned(JsonValue) and (JsonValue is TJsonObject) then
+      begin
+        if JsonValue.GetValue<string>('kind') = 'markdown' then
+          Result.diagnostics[i].messageMarkup.kind := TLSPMarkupKind.markdown
+        else
+          Result.diagnostics[i].messageMarkup.kind := TLSPMarkupKind.plaintext;
+        Result.diagnostics[i].messageMarkup.value := JsonValue.GetValue<string>('value');
+      end
+      else
+      begin
+        Result.diagnostics[i].messageMarkup.kind := TLSPMarkupKind.plaintext;
+        Result.diagnostics[i].messageMarkup.value := s;
+      end;
+    end;
+  end;
+end;
+
 function JsonInlayHintResultToObject(const ResultJson: TJSONValue): TLSPInlayHintResult;
 begin
   Result := TLSPInlayHintResult.Create;
@@ -1113,6 +1194,32 @@ begin
 
   if ResultJson is TJSONArray then
     Result.MemberFromJsonValue('inlineValues', ResultJson);
+end;
+
+function JsonInlineCompletionResultToObject(const ResultJson: TJSONValue): TLSPInlineCompletionList;
+begin
+  Result := TLSPInlineCompletionList.Create;
+
+  if ResultJson is TJsonObject then
+    Result.FromJSON(TJsonObject(ResultJson))
+  else if ResultJson is TJsonArray then
+    Result.MemberFromJsonValue('items', ResultJson);
+end;
+
+function JsonTextDocumentContentResultToObject(const ResultJson: TJSONValue): TLSPTextDocumentContentResult;
+begin
+  Result := TLSPTextDocumentContentResult.Create;
+
+  if ResultJson is TJSONObject then
+    Result.FromJSON(TJSONObject(ResultJson))
+end;
+
+function JsonTextDocumentContentRefreshParams(const ParamsJson: TJSONValue): TLSPTextDocumentContentRefreshParams;
+begin
+  Result := TLSPTextDocumentContentRefreshParams.Create;
+
+  if ParamsJson is TJSONObject then
+    Result.FromJSON(TJSONObject(ParamsJson));
 end;
 
 function JsonRegisterCapabilitiesToRegistrations(const ParamsJson:
