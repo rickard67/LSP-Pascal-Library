@@ -42,7 +42,7 @@ documentation below or visit the official language server protocol documentation
 
 ### Text Document Content Refresh
 Added event handler (OnTextDocumentContentRefresh) to process the server request and 
-added responds back to the server.
+added response back to the server.
 For more info see documentation below or visit the official
 language server protocol documentation.
 
